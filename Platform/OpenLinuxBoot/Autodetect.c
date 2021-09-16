@@ -8,6 +8,7 @@
 #include "LinuxBootInternal.h"
 
 #include <Uefi.h>
+#include <Guid/Gpt.h>
 #include <Library/BaseLib.h>
 #include <Library/DevicePathLib.h>
 #include <Library/MemoryAllocationLib.h>
@@ -327,15 +328,12 @@ AutodetectBootOptions (
   OC_PARSED_VAR     *Option;
   EFI_GUID          Guid;
   CHAR8             *AsciiStrValue;
-  BOOLEAN           Found;
+  CHAR8             *GrubVarName;
+  CHAR8             **NewOption;
+  BOOLEAN           FoundOptions;
+  BOOLEAN           PlusOpts;
 
-  if ((gLinuxBootFlags & LINUX_BOOT_ADD_RO) != 0) {
-    DEBUG ((OC_TRACE_KERNEL_OPTS, "LNX: Adding \"ro\"\n"));
-    Status = AddOption (Options, "ro", FALSE);
-  }
-
-  Found       = FALSE;
-  InsertIndex = Options->Count;
+  FoundOptions = FALSE;
 
   //
   // Look for user-specified options for this partuuid.
@@ -360,62 +358,26 @@ AutodetectBootOptions (
       }
       
       if (CompareMem (&gPartuuid, &Guid, sizeof (EFI_GUID)) != 0) {
-        DEBUG ((OC_TRACE_KERNEL_OPTS, "LNX: No match %g != %g\n", &gPartuuid, &Guid));
+        DEBUG (((gLinuxBootFlags & LINUX_BOOT_LOG_VERBOSE) == 0 ? DEBUG_VERBOSE : DEBUG_INFO,
+          "LNX: No match partuuidopts:%g != %g\n", &Guid, &gPartuuid));
       } else {
-        DEBUG ((OC_TRACE_KERNEL_OPTS, "LNX: Using partuuidopts=\"%s\"\n", Option->Unicode.Value));
+        PlusOpts = OcUnicodeEndsWith (Option->Unicode.Name, L"+", FALSE);
+
+        DEBUG (((gLinuxBootFlags & LINUX_BOOT_LOG_VERBOSE) == 0 ? DEBUG_VERBOSE : DEBUG_INFO,
+          "LNX: Using partuuidopts%a=\"%s\"\n",
+          PlusOpts ? "+" : "",
+          Option->Unicode.Value));
 
         Status = AddOption (Options, Option->Unicode.Value, TRUE);
         if (EFI_ERROR (Status)) {
           return Status;
         }
 
-        //
-        // partuuidopts:{partuuid}+="...": use user options in addition to detected options.
-        //
-        if (!OcUnicodeEndsWith (Option->Unicode.Name, L"+", FALSE)) {
+        if (!PlusOpts) {
           return EFI_SUCCESS;
         }
 
-        Found = TRUE;
-      }
-    }
-  }
-
-  //
-  // Use options from GRUB default location.
-  //
-  if (mEtcDefaultGrubOptions != NULL) {
-    //
-    // If both are present both should be added, standard grub scripts add them
-    // in this order.
-    // Rescue should only use GRUB_CMDLINE_LINUX so this is correct as
-    // far as it goes; however note that rescue options are unfortunately not
-    // normally stored here, but are generated in the depths of grub scripts.
-    //
-    for (Index = 0; Index < (IsRescue ? 1u : 2u); Index++) {
-      if (OcParsedVarsGetAsciiStr (
-        mEtcDefaultGrubOptions,
-        Index == 0 ? "GRUB_CMDLINE_LINUX" : "GRUB_CMDLINE_LINUX_DEFAULT",
-        &AsciiStrValue
-        ) &&
-        AsciiStrValue != NULL) {
-
-        //
-        // Insert these after "ro" but before "partuuidopts+".
-        //
-        if (AsciiStrValue[0] != '\0') {
-          Status = InsertOption (InsertIndex, Options, AsciiStrValue, FALSE);
-          if (EFI_ERROR (Status)) {
-            return Status;
-          }
-          InsertIndex++;
-        }
-
-        //
-        // Empty string value is good enough for found: we are operating
-        // from GRUB cfg files rather than pure guesswork.
-        //
-        Found = TRUE;
+        FoundOptions = TRUE;
       }
     }
   }
@@ -425,11 +387,17 @@ AutodetectBootOptions (
   //
   for (Index = 0; Index < gParsedLoadOptions->Count; Index++) {
     Option = OcFlexArrayItemAt (gParsedLoadOptions, Index);
-    if (!Found && StrCmp (Option->Unicode.Name, L"autoopts") == 0) {
+    //
+    // Don't use autoopts if partition specific partuuidopts already found.
+    //
+    if (!FoundOptions && StrCmp (Option->Unicode.Name, L"autoopts") == 0) {
       if (Option->Unicode.Value == NULL) {
         DEBUG ((DEBUG_WARN, "LNX: Missing value for %s\n", Option->Unicode.Name));
         continue;
       }
+
+      DEBUG (((gLinuxBootFlags & LINUX_BOOT_LOG_VERBOSE) == 0 ? DEBUG_VERBOSE : DEBUG_INFO,
+        "LNX: Using %s=\"%s\"\n", Option->Unicode.Name, Option->Unicode.Value));
 
       Status = AddOption (Options, Option->Unicode.Value, TRUE);
       return Status;
@@ -439,25 +407,111 @@ AutodetectBootOptions (
         continue;
       }
 
+      DEBUG (((gLinuxBootFlags & LINUX_BOOT_LOG_VERBOSE) == 0 ? DEBUG_VERBOSE : DEBUG_INFO,
+        "LNX: Using %s=\"%s\"\n", Option->Unicode.Name, Option->Unicode.Value));
+
       Status = AddOption (Options, Option->Unicode.Value, TRUE);
       if (EFI_ERROR (Status)) {
         return Status;
       }
 
-      Found = TRUE;
+      FoundOptions = TRUE;
+    }
+  }
+
+  //
+  // Use options from GRUB default location.
+  //
+  if (mEtcDefaultGrubOptions != NULL) {
+    //
+    // Insert these after "ro" but before any user specified opts.
+    //
+    InsertIndex = 0;
+
+    //
+    // If both are present both should be added, standard grub scripts add them
+    // in this order.
+    // Rescue should only use GRUB_CMDLINE_LINUX so this is correct as
+    // far as it goes; however note that rescue options are unfortunately not
+    // normally stored here, but are generated in the depths of grub scripts.
+    //
+    for (Index = 0; Index < (IsRescue ? 1u : 2u); Index++) {
+      if (Index == 0) {
+        GrubVarName = "GRUB_CMDLINE_LINUX";
+      } else {
+        GrubVarName = "GRUB_CMDLINE_LINUX_DEFAULT";
+      }
+      if (OcParsedVarsGetAsciiStr (
+        mEtcDefaultGrubOptions,
+        GrubVarName,
+        &AsciiStrValue
+        ) &&
+        AsciiStrValue != NULL) {
+
+        DEBUG (((gLinuxBootFlags & LINUX_BOOT_LOG_VERBOSE) == 0 ? DEBUG_VERBOSE : DEBUG_INFO,
+          "LNX: Using %a=\"%a\"\n", GrubVarName, AsciiStrValue));
+
+        if (AsciiStrValue[0] != '\0') {
+          Status = InsertOption (InsertIndex, Options, AsciiStrValue, FALSE);
+          if (EFI_ERROR (Status)) {
+            return Status;
+          }
+          //
+          // Must not increment insert index if empty option.
+          //
+          InsertIndex++;
+        }
+
+        //
+        // Empty string value is good enough for found: we are operating
+        // from GRUB cfg files rather than pure guesswork.
+        //
+        FoundOptions = TRUE;
+      }
     }
   }
 
   //
   // It might be valid to have no options except "ro", but at least empty
-  // string "GRUB_CMDLINE_LINUX" needs to be present in that case or we stop.
+  // (not missing) user specified options, or GRUB_CMDLINE_LINUX_... needs
+  // to be present in that case or we stop.
   //
-  if (!Found) {
+  if (!FoundOptions) {
     DEBUG ((DEBUG_WARN, "LNX: No grub default or user defined options - aborting\n"));
     return EFI_INVALID_PARAMETER;
   }
 
-  return EFI_SUCCESS;
+  //
+  // Insert "root=PARTUUID=..." option, followed by "ro" if requested, only if we get to here.
+  //
+  if (CompareGuid (&gPartuuid, &gEfiPartTypeUnusedGuid)) {
+    Status = EFI_UNSUPPORTED;
+    DEBUG ((DEBUG_WARN, "LNX: Cannot autodetect root on MBR partition - %r\n", Status));
+    return Status;
+  }
+  DEBUG (((gLinuxBootFlags & LINUX_BOOT_LOG_VERBOSE) == 0 ? DEBUG_VERBOSE : DEBUG_INFO,
+    "LNX: Creating \"root=PARTUUID=%g\"\n", gPartuuid));
+
+  InsertIndex = 0;
+
+  NewOption = OcFlexArrayInsertItem (Options, InsertIndex);
+  if (NewOption == NULL) {
+    return EFI_OUT_OF_RESOURCES;
+  }
+  ++InsertIndex;
+  
+  Status = CreateRootPartuuid (NewOption);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  if ((gLinuxBootFlags & LINUX_BOOT_ADD_RO) != 0) {
+    DEBUG (((gLinuxBootFlags & LINUX_BOOT_LOG_VERBOSE) == 0 ? DEBUG_VERBOSE : DEBUG_INFO,
+      "LNX: Adding \"ro\"\n"));
+    Status = InsertOption (InsertIndex, Options, "ro", FALSE);
+  }
+
+  return Status;
 }
 
 STATIC
@@ -564,20 +618,7 @@ GenerateEntriesForVmlinuzFiles (
     }
 
     //
-    // root=PARTUUID=... option.
-    //
-    Option = OcFlexArrayAddItem (Entry->Options);
-    if (Option == NULL) {
-      return EFI_OUT_OF_RESOURCES;
-    }
-    
-    Status = CreateRootPartuuid (Option);
-    if (EFI_ERROR (Status)) {
-      return Status;
-    }
-
-    //
-    // Remaining options.
+    // Add all options.
     //
     Status = AutodetectBootOptions (IsRescue, Entry->Options);
     if (EFI_ERROR (Status)) {
