@@ -63,7 +63,7 @@ if [ $? -ne 0 ]; then
     sig-list-to-certs "$certfile" "${certsdir}/vendor" 1>/dev/null
 
     if [ $? -ne 0 ]; then
-        echo >&2 "ERROR: vendor_authorized contents cannot be processed as cert file or dbx."
+        echo >&2 "ERROR: vendor_authorized contents cannot be processed as cert file or sig list."
 
         rm -rf "$certsdir"
         rm "$certfile"
@@ -100,7 +100,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # outfile name from cert CN
-certname=$(openssl x509 -noout -subject -inform der -in "$certfile" | sed 's/^subject=.*CN *= *//' | sed 's/[,\/].*//' | sed 's/ *//g') || { rm "$certfile"; exit 1; }
+certname=$(openssl x509 -noout -subject -inform der -in "$certfile" | sed 's/^subject=.*CN *=[ \"]*//' | sed 's/[,\/].*//' | sed 's/ *//g') || { rm "$certfile"; exit 1; }
 outfile="${certname}.pem"
 
 openssl x509 -inform der -in "$certfile" -out "$outfile" || { rm "$certfile"; exit 1; }
