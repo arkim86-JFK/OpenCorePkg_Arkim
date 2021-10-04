@@ -89,19 +89,20 @@ OcLoadDrivers (
   OUT EFI_HANDLE          **DriversToConnect  OPTIONAL
   )
 {
-  EFI_STATUS            Status;
-  VOID                  *Driver;
-  UINT32                DriverSize;
-  UINT32                Index;
-  CHAR16                DriverPath[OC_STORAGE_SAFE_PATH_MAX];
-  EFI_HANDLE            ImageHandle;
-  EFI_HANDLE            *DriversToConnectIterator;
-  VOID                  *DriverBinding;
-  BOOLEAN               SkipDriver;
-  OC_UEFI_DRIVER_ENTRY  *DriverEntry;
-  CONST CHAR8           *DriverComment;
-  CHAR8                 *DriverFileName;
-  CONST CHAR8           *DriverArguments;
+  EFI_STATUS                  Status;
+  VOID                        *Driver;
+  UINT32                      DriverSize;
+  UINT32                      Index;
+  CHAR16                      DriverPath[OC_STORAGE_SAFE_PATH_MAX];
+  EFI_HANDLE                  ImageHandle;
+  EFI_LOADED_IMAGE_PROTOCOL   *LoadedImage;
+  EFI_HANDLE                  *DriversToConnectIterator;
+  VOID                        *DriverBinding;
+  BOOLEAN                     SkipDriver;
+  OC_UEFI_DRIVER_ENTRY        *DriverEntry;
+  CONST CHAR8                 *DriverComment;
+  CHAR8                       *DriverFileName;
+  CONST CHAR8                 *DriverArguments;
 
   DriversToConnectIterator = NULL;
   if (DriversToConnect != NULL) {
@@ -188,15 +189,36 @@ OcLoadDrivers (
       continue;
     }
 
-    //
-    // OC before driver arguments did not zero these and Boot Services does
-    // not, so old OC calling new driver which takes args will likely crash.
-    //
-    ((EFI_LOADED_IMAGE_PROTOCOL *)ImageHandle)->LoadOptionsSize  = 0;
-    ((EFI_LOADED_IMAGE_PROTOCOL *)ImageHandle)->LoadOptions      = NULL;
-
     if (DriverArguments != NULL && DriverArguments[0] != '\0') {
-      OcAppendArgumentsToLoadedImage (ImageHandle, &DriverArguments, 1, TRUE);
+      Status = gBS->HandleProtocol (
+        ImageHandle,
+        &gEfiLoadedImageProtocolGuid,
+        (VOID **) &LoadedImage
+        );
+      if (EFI_ERROR (Status)) {
+        DEBUG ((
+          DEBUG_ERROR,
+          "OC: Failed to locate loaded image for driver %a at %u - %r!\n",
+          DriverFileName,
+          Index,
+          Status
+          ));
+        gBS->UnloadImage (ImageHandle);
+        FreePool (Driver);
+        continue;
+      }
+      if (!OcAppendArgumentsToLoadedImage (LoadedImage, &DriverArguments, 1, TRUE)) {
+        DEBUG ((
+          DEBUG_ERROR,
+          "OC: Unable to apply arguments to driver %a at %u - %r!\n",
+          DriverFileName,
+          Index,
+          Status
+          ));
+        gBS->UnloadImage (ImageHandle);
+        FreePool (Driver);
+        continue;
+      }
     }
 
     Status = gBS->StartImage (
@@ -428,13 +450,17 @@ OcLoadAppleSecureBoot (
   UINT8                       SecureBootPolicy;
 
   SecureBootModel = OC_BLOB_GET (&Config->Misc.Security.SecureBootModel);
+  if (AsciiStrCmp (SecureBootModel, OC_SB_MODEL_DEFAULT) == 0 || SecureBootModel[0] == '\0') {
+    SecureBootModel = OcGetDefaultSecureBootModel (Config);
+  }
+
   RealSecureBootModel = OcAppleImg4GetHardwareModel (SecureBootModel);
 
   if (AsciiStrCmp (SecureBootModel, OC_SB_MODEL_DISABLED) == 0) {
     SecureBootPolicy = AppleImg4SbModeDisabled;
   } else if (Config->Misc.Security.ApECID != 0
     && (RealSecureBootModel == NULL
-      || AsciiStrCmp (RealSecureBootModel, "x86legacy") != 0)) {
+      || AsciiStrCmp (RealSecureBootModel, OC_SB_MODEL_LEGACY) != 0)) {
     //
     // Note, for x86legacy it is always medium policy.
     //
@@ -472,7 +498,7 @@ OcLoadAppleSecureBoot (
     // This is what Apple does at least.
     // I believe no ECID is invalid for macOS 12.
     //
-    if (AsciiStrCmp (RealSecureBootModel, "x86legacy") == 0
+    if (AsciiStrCmp (RealSecureBootModel, OC_SB_MODEL_LEGACY) == 0
       && Config->Misc.Security.ApECID == 0) {
       DEBUG ((DEBUG_INFO, "OC: Discovered x86legacy with zero ECID, using system-id\n"));
       OcGetLegacySecureBootECID (Config, &Config->Misc.Security.ApECID);
