@@ -153,6 +153,7 @@ CheckBooterQuirks (
   BOOLEAN               IsDisableVariableWriteEnabled;
   BOOLEAN               IsEnableWriteUnprotectorEnabled;
   BOOLEAN               HasOpenRuntimeEfiDriver;
+  INT8                  ResizeAppleGpuBars;
 
   ErrorCount                      = 0;
   UserBooter                      = &Config->Booter;
@@ -164,6 +165,7 @@ CheckBooterQuirks (
   IsEnableWriteUnprotectorEnabled = UserBooter->Quirks.EnableWriteUnprotector;
   HasOpenRuntimeEfiDriver         = FALSE;
   MaxSlide                        = UserBooter->Quirks.ProvideMaxSlide;
+  ResizeAppleGpuBars              = UserBooter->Quirks.ResizeAppleGpuBars;
 
   for (Index = 0; Index < UserUefi->Drivers.Count; ++Index) {
     DriverEntry = UserUefi->Drivers.Values[Index];
@@ -206,6 +208,17 @@ CheckBooterQuirks (
       DEBUG ((DEBUG_WARN, "Booter->Quirks->ProvideMaxSlide is set to %u, but ProvideCustomSlide is not enabled altogether!\n", MaxSlide));
       ++ErrorCount;
     }
+  }
+
+  if (ResizeAppleGpuBars > 10) {
+    DEBUG ((DEBUG_WARN, "Booter->Quirks->ResizeAppleGpuBars is set to %d, which is unsupported by macOS!\n", UserBooter->Quirks.ResizeAppleGpuBars));
+    ++ErrorCount;
+  } else if (ResizeAppleGpuBars > 8) {
+    DEBUG ((DEBUG_WARN, "Booter->Quirks->ResizeAppleGpuBars is set to %d, which is unstable with macOS sleep-wake!\n", UserBooter->Quirks.ResizeAppleGpuBars));
+    ++ErrorCount;
+  } else if (ResizeAppleGpuBars > 0) {
+    DEBUG ((DEBUG_WARN, "Booter->Quirks->ResizeAppleGpuBars is set to %d, which is not useful for macOS!\n", UserBooter->Quirks.ResizeAppleGpuBars));
+    ++ErrorCount;
   }
 
   return ErrorCount;

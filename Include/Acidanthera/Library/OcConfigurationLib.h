@@ -620,9 +620,10 @@ typedef enum {
   _(UINT16                      , VolumeAmplifier    ,     , 0                                 , ()) \
   _(BOOLEAN                     , AudioSupport       ,     , FALSE                             , ()) \
   _(UINT8                       , AudioCodec         ,     , 0                                 , ()) \
-  _(UINT8                       , AudioOut           ,     , 0                                 , ()) \
+  _(UINT64                      , AudioOutMask       ,     , MAX_UINT64                        , ()) \
   _(UINT8                       , MinimumVolume      ,     , 0                                 , ()) \
-  _(BOOLEAN                     , ResetTrafficClass  ,     , FALSE                             , ())
+  _(BOOLEAN                     , ResetTrafficClass  ,     , FALSE                             , ()) \
+  _(BOOLEAN                     , DisconnectHda      ,     , FALSE                             , ())
   OC_DECLARE (OC_UEFI_AUDIO)
 
 ///
@@ -653,9 +654,11 @@ typedef enum {
   _(BOOLEAN                     , ReplaceTabWithSpace         ,     , FALSE  , ()) \
   _(BOOLEAN                     , ReconnectOnResChange        ,     , FALSE  , ()) \
   _(BOOLEAN                     , SanitiseClearScreen         ,     , FALSE  , ()) \
+  _(INT8                        , UIScale                     ,     , -1     , ()) \
   _(BOOLEAN                     , UgaPassThrough              ,     , FALSE  , ()) \
   _(BOOLEAN                     , DirectGopRendering          ,     , FALSE  , ()) \
-  _(BOOLEAN                     , ForceResolution             ,     , FALSE  , ())
+  _(BOOLEAN                     , ForceResolution             ,     , FALSE  , ()) \
+  _(BOOLEAN                     , ReconnectGraphicsOnConnect  ,     , FALSE  , ())
   OC_DECLARE (OC_UEFI_OUTPUT)
 
 ///
@@ -691,6 +694,7 @@ typedef enum {
   _(BOOLEAN                     , ActivateHpetSupport         ,     , FALSE  , ()) \
   _(BOOLEAN                     , DisableSecurityPolicy       ,     , FALSE  , ()) \
   _(BOOLEAN                     , EnableVectorAcceleration    ,     , FALSE  , ()) \
+  _(BOOLEAN                     , EnableVmx                   ,     , FALSE  , ()) \
   _(BOOLEAN                     , ForgeUefiSupport            ,     , FALSE  , ()) \
   _(BOOLEAN                     , IgnoreInvalidFlexRatio      ,     , FALSE  , ()) \
   _(INT8                        , ResizeGpuBars               ,     , -1     , ()) \
