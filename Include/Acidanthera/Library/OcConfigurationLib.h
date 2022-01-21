@@ -606,6 +606,9 @@ typedef enum {
   _(UINT16                      , KeyInitialDelay       ,     , 50                                , ()) \
   _(UINT16                      , KeySubsequentDelay    ,     , 5                                 , ()) \
   _(BOOLEAN                     , GraphicsInputMirroring,     , FALSE                             , ()) \
+  _(UINT32                      , PointerPollMin        ,     , 0                                 , ()) \
+  _(UINT32                      , PointerPollMax        ,     , 0                                 , ()) \
+  _(UINT32                      , PointerPollMask       ,     , ((UINT32) (-1))                   , ()) \
   _(UINT16                      , PointerSpeedDiv       ,     , 1                                 , ()) \
   _(UINT16                      , PointerSpeedMul       ,     , 1                                 , ())
   OC_DECLARE (OC_UEFI_APPLEINPUT)
@@ -617,11 +620,12 @@ typedef enum {
   _(OC_STRING                   , AudioDevice        ,     , OC_STRING_CONSTR ("", _, __)      , OC_DESTR (OC_STRING)) \
   _(OC_STRING                   , PlayChime          ,     , OC_STRING_CONSTR ("Auto", _, __)  , OC_DESTR (OC_STRING)) \
   _(UINT32                      , SetupDelay         ,     , 0                                 , ()) \
-  _(UINT16                      , VolumeAmplifier    ,     , 0                                 , ()) \
   _(BOOLEAN                     , AudioSupport       ,     , FALSE                             , ()) \
-  _(UINT8                       , AudioCodec         ,     , 0                                 , ()) \
   _(UINT64                      , AudioOutMask       ,     , MAX_UINT64                        , ()) \
-  _(UINT8                       , MinimumVolume      ,     , 0                                 , ()) \
+  _(UINT8                       , AudioCodec         ,     , 0                                 , ()) \
+  _(INT8                        , MaximumGain        ,     , -15                               , ()) \
+  _(INT8                        , MinimumAssistGain  ,     , -30                               , ()) \
+  _(INT8                        , MinimumAudibleGain ,     , -128                              , ()) \
   _(BOOLEAN                     , ResetTrafficClass  ,     , FALSE                             , ()) \
   _(BOOLEAN                     , DisconnectHda      ,     , FALSE                             , ())
   OC_DECLARE (OC_UEFI_AUDIO)

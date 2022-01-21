@@ -741,6 +741,9 @@ mUefiAppleInputSchema[] = {
   OC_SCHEMA_BOOLEAN_IN  ("GraphicsInputMirroring",  OC_GLOBAL_CONFIG,  Uefi.AppleInput.GraphicsInputMirroring),
   OC_SCHEMA_INTEGER_IN  ("KeyInitialDelay",         OC_GLOBAL_CONFIG,  Uefi.AppleInput.KeyInitialDelay),
   OC_SCHEMA_INTEGER_IN  ("KeySubsequentDelay",      OC_GLOBAL_CONFIG,  Uefi.AppleInput.KeySubsequentDelay),
+  OC_SCHEMA_INTEGER_IN  ("PointerPollMask",         OC_GLOBAL_CONFIG,  Uefi.AppleInput.PointerPollMask),
+  OC_SCHEMA_INTEGER_IN  ("PointerPollMax",          OC_GLOBAL_CONFIG,  Uefi.AppleInput.PointerPollMax),
+  OC_SCHEMA_INTEGER_IN  ("PointerPollMin",          OC_GLOBAL_CONFIG,  Uefi.AppleInput.PointerPollMin),
   OC_SCHEMA_INTEGER_IN  ("PointerSpeedDiv",         OC_GLOBAL_CONFIG,  Uefi.AppleInput.PointerSpeedDiv),
   OC_SCHEMA_INTEGER_IN  ("PointerSpeedMul",         OC_GLOBAL_CONFIG,  Uefi.AppleInput.PointerSpeedMul),
 };
@@ -753,11 +756,12 @@ mUefiAudioSchema[] = {
   OC_SCHEMA_INTEGER_IN ("AudioOutMask",       OC_GLOBAL_CONFIG, Uefi.Audio.AudioOutMask),
   OC_SCHEMA_BOOLEAN_IN ("AudioSupport",       OC_GLOBAL_CONFIG, Uefi.Audio.AudioSupport),
   OC_SCHEMA_BOOLEAN_IN ("DisconnectHda",      OC_GLOBAL_CONFIG, Uefi.Audio.DisconnectHda),
-  OC_SCHEMA_INTEGER_IN ("MinimumVolume",      OC_GLOBAL_CONFIG, Uefi.Audio.MinimumVolume),
+  OC_SCHEMA_INTEGER_IN ("MaximumGain",        OC_GLOBAL_CONFIG, Uefi.Audio.MaximumGain),
+  OC_SCHEMA_INTEGER_IN ("MinimumAssistGain",  OC_GLOBAL_CONFIG, Uefi.Audio.MinimumAssistGain),
+  OC_SCHEMA_INTEGER_IN ("MinimumAudibleGain", OC_GLOBAL_CONFIG, Uefi.Audio.MinimumAudibleGain),
   OC_SCHEMA_STRING_IN  ("PlayChime",          OC_GLOBAL_CONFIG, Uefi.Audio.PlayChime),
   OC_SCHEMA_BOOLEAN_IN ("ResetTrafficClass",  OC_GLOBAL_CONFIG, Uefi.Audio.ResetTrafficClass),
   OC_SCHEMA_INTEGER_IN ("SetupDelay",         OC_GLOBAL_CONFIG, Uefi.Audio.SetupDelay),
-  OC_SCHEMA_INTEGER_IN ("VolumeAmplifier",    OC_GLOBAL_CONFIG, Uefi.Audio.VolumeAmplifier),
 };
 
 STATIC

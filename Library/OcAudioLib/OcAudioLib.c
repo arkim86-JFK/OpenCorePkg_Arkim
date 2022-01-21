@@ -45,7 +45,7 @@ STATIC
 OC_AUDIO_PROTOCOL_PRIVATE
 mAudioProtocol = {
   .Signature       = OC_AUDIO_PROTOCOL_PRIVATE_SIGNATURE,
-  .AudioIo        = NULL,
+  .AudioIo         = NULL,
   .ProviderAcquire = NULL,
   .ProviderRelease = NULL,
   .ProviderContext = NULL,
@@ -54,10 +54,12 @@ mAudioProtocol = {
   .PlaybackDelay   = 0,
   .Language        = AppleVoiceOverLanguageEn,
   .OutputIndexMask = 0,
-  .Volume          = 100,
+  .Gain            = APPLE_SYSTEM_AUDIO_VOLUME_DB_MIN,
   .OcAudio         = {
     .Revision           = OC_AUDIO_PROTOCOL_REVISION,
     .Connect            = InternalOcAudioConnect,
+    .RawGainToDecibels  = InternalOcAudioRawGainToDecibels,
+    .SetDefaultGain     = InternalOcAudioSetDefaultGain,
     .SetProvider        = InternalOcAudioSetProvider,
     .PlayFile           = InternalOcAudioPlayFile,
     .StopPlayback       = InternalOcAudioStopPlayback,
@@ -158,51 +160,80 @@ OcAudioInstallProtocols (
   return &mAudioProtocol.OcAudio;
 }
 
-UINT8
-OcGetVolumeLevel (
-  IN  UINT32   Amplifier,
-  OUT BOOLEAN  *Muted
+VOID
+OcGetAmplifierGain (
+  OUT UINT8              *RawGain,
+  OUT INT8               *DecibelGain,
+  OUT BOOLEAN            *Muted,
+  OUT BOOLEAN            *TryConversion
   )
 {
-  EFI_STATUS  Status;
+  EFI_STATUS  Status1;
+  EFI_STATUS  Status2;
   UINTN       Size;
-  UINT8       Value;
-  UINT8       NewValue;
 
-  Size   = sizeof (Value);
-  Status = gRT->GetVariable (
+  //
+  // Get mute setting and raw codec gain setting (all versions of macOS).
+  //
+  Size    = sizeof (*RawGain);
+  Status1 = gRT->GetVariable (
     APPLE_SYSTEM_AUDIO_VOLUME_VARIABLE_NAME,
     &gAppleBootVariableGuid,
     NULL,
     &Size,
-    &Value
+    RawGain
     );
-  if (EFI_ERROR (Status)) {
-    Value = OC_AUDIO_DEFAULT_VOLUME_LEVEL;
-  }
-
-  if ((Value & APPLE_SYSTEM_AUDIO_VOLUME_MUTED) != 0) {
-    Value  &= APPLE_SYSTEM_AUDIO_VOLUME_VOLUME_MASK;
-    *Muted = TRUE;
+  if (!EFI_ERROR (Status1)) {
+    *Muted = (*RawGain & APPLE_SYSTEM_AUDIO_VOLUME_MUTED) != 0;
+    *RawGain &= APPLE_SYSTEM_AUDIO_VOLUME_VOLUME_MASK;
   } else {
     *Muted = FALSE;
+    *RawGain = 0;
   }
-
-  if (Amplifier > 0) {
-    NewValue = (UINT8) (Value * Amplifier / 100);
-  } else {
-    NewValue = Value;
-  }
-
-  NewValue = MIN (NewValue, 100);
 
   DEBUG ((
     DEBUG_INFO,
-    "OCAU: System volume is %d (calculated from %d) - %r\n",
-    NewValue,
-    Value,
-    Status
+    "OCAU: System raw gain 0x%X, audio mute (for chime) %u - %r\n",
+    *RawGain,
+    *Muted,
+    Status1
     ));
 
-  return NewValue;
+  //
+  // Get dB gain setting, which can be correctly applied to any amp on any codec if available.
+  // (Not present at least in Lion 10.7 and earlier.)
+  //
+  Size    = sizeof (*DecibelGain);
+  Status2 = gRT->GetVariable (
+    APPLE_SYSTEM_AUDIO_VOLUME_DB_VARIABLE_NAME,
+    &gAppleBootVariableGuid,
+    NULL,
+    &Size,
+    DecibelGain
+    );
+  if (EFI_ERROR (Status2)) {
+    *DecibelGain = OC_AUDIO_DEFAULT_GAIN;
+  }
+
+  DEBUG ((
+    DEBUG_INFO,
+    "OCAU: System decibel gain %d dB%a - %r\n",
+    *DecibelGain,
+    *Muted ? " (probably invalid due to mute)" : "",
+    Status2
+    ));
+
+  //
+  // SystemAudioVolumeDB does not contain sane values when SystemAudioVolume indicates muted, so we have
+  // to fall back to default gain value or conversion; for use with audio assist, which never mutes.
+  //
+  if (*Muted) {
+    *DecibelGain   = OC_AUDIO_DEFAULT_GAIN;
+    Status2 = EFI_INVALID_PARAMETER;
+  }
+
+  //
+  // If no saved decibel gain, but saved raw gain, it is worth trying to convert.
+  //
+  *TryConversion = !EFI_ERROR (Status1) && EFI_ERROR (Status2);
 }

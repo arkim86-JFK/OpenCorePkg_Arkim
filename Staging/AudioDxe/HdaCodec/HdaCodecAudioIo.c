@@ -3,15 +3,18 @@
   SPDX-License-Identifier: BSD-3-Clause
 **/
 
+#include <Guid/AppleVariable.h>
+
 #include "HdaCodec.h"
 #include <Protocol/AudioIo.h>
 #include <Library/OcMiscLib.h>
+#include <Library/PcdLib.h>
 
 //
 // Cache playback setup.
 //
 STATIC UINT64                     mOutputIndexMask = 0;
-STATIC UINT8                      mVolume = 0;
+STATIC INT8                       mGain = APPLE_SYSTEM_AUDIO_VOLUME_DB_MIN;
 STATIC EFI_AUDIO_IO_PROTOCOL_FREQ mFreq = 0;
 STATIC EFI_AUDIO_IO_PROTOCOL_BITS mBits = 0;
 STATIC UINT8                      mChannels = 0xFFU;
@@ -210,12 +213,68 @@ HdaCodecAudioIoGetOutputs(
 }
 
 /**
+  Convert raw amplifier gain setting to decibel gain value; converts using the parameters of the first channel specified
+  in OutputIndexMask which has non-zero amp capabilities.
+  Note: It seems very typical - though it is certainly not required by the spec - that all amps on a codec which have
+  non-zero amp capabilities, actually all have the same params as each other.
+
+  @param[in]  This              A pointer to the EFI_AUDIO_IO_PROTOCOL instance.
+  @param[in]  OutputIndexMask   A mask indicating the desired outputs.
+  @param[in]  GainParam         The raw gain parameter for the amplifier.
+  @param[out] Gain              The amplifier gain (or attentuation if negative) in dB to use, relative to 0 dB level (0 dB
+                                is usually at at or near max available volume, but is not required to be so in the spec).
+
+  @retval EFI_SUCCESS           The gain value was calculated successfully.
+  @retval EFI_INVALID_PARAMETER One or more parameters are invalid.
+**/
+EFI_STATUS
+EFIAPI
+HdaCodecAudioIoRawGainToDecibels (
+  IN  EFI_AUDIO_IO_PROTOCOL       *This,
+  IN  UINT64                      OutputIndexMask,
+  IN  UINT8                       GainParam,
+  OUT INT8                        *Gain
+  )
+{
+  EFI_STATUS            Status;
+  AUDIO_IO_PRIVATE_DATA *AudioIoPrivateData;
+  HDA_CODEC_DEV         *HdaCodecDev;
+  UINTN                 Index;
+  UINT64                IndexMask;
+
+  // If a parameter is invalid, return error.
+  if (This == NULL || Gain == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  // Get private data.
+  AudioIoPrivateData = AUDIO_IO_PRIVATE_DATA_FROM_THIS (This);
+  HdaCodecDev = AudioIoPrivateData->HdaCodecDev;
+
+  Status = EFI_NOT_FOUND;
+
+  // Try to convert on requested outputs.
+  for (Index = 0, IndexMask = 1; Index < HdaCodecDev->OutputPortsCount; Index++, IndexMask <<= 1) {
+    if ((OutputIndexMask & IndexMask) == 0) {
+      continue;
+    }
+    Status = HdaCodecWidgetRawGainToDecibels (HdaCodecDev->OutputPorts[Index], GainParam, Gain);
+    if (!EFI_ERROR (Status) || Status != EFI_NOT_FOUND) {
+      return Status;
+    }
+  }
+
+  return Status;
+}
+
+/**
   Sets up the device to play audio data. Basic caching is implemented: no actions are taken
   the second and subsequent times that set up is called again with exactly the same paremeters. 
 
   @param[in] This               A pointer to the EFI_AUDIO_IO_PROTOCOL instance.
   @param[in] OutputIndexMask    A mask indicating the desired outputs.
-  @param[in] Volume             The volume (0-100) to use.
+  @param[in] Gain               The amplifier gain (or attentuation if negative) in dB to use, relative to 0 dB level (0 dB
+                                is usually at at or near max available volume, but is not required to be so in the spec).
   @param[in] Bits               The width in bits of the source data.
   @param[in] Freq               The frequency of the source data.
   @param[in] Channels           The number of channels the source data contains.
@@ -229,7 +288,7 @@ EFIAPI
 HdaCodecAudioIoSetupPlayback(
   IN EFI_AUDIO_IO_PROTOCOL *This,
   IN UINT64 OutputIndexMask,
-  IN UINT8 Volume,
+  IN INT8 Gain,
   IN EFI_AUDIO_IO_PROTOCOL_FREQ Freq,
   IN EFI_AUDIO_IO_PROTOCOL_BITS Bits,
   IN UINT8 Channels,
@@ -242,7 +301,9 @@ HdaCodecAudioIoSetupPlayback(
   EFI_HDA_IO_PROTOCOL *HdaIo;
   UINTN Index;
   UINT64 IndexMask;
-  UINT32 GpioData;
+  UINT32 Response;
+  UINT8 NumGpios;
+  UINT8 ChannelPayload;
 
   // Widgets.
   HDA_WIDGET_DEV *PinWidget;
@@ -260,23 +321,24 @@ HdaCodecAudioIoSetupPlayback(
   DEBUG((DEBUG_VERBOSE, "HdaCodecAudioIoSetupPlayback(): start\n"));
 
   // Basic settings caching.
-  if (mOutputIndexMask == OutputIndexMask &&
-      mVolume == Volume &&
-      mFreq == Freq &&
-      mBits == Bits &&
-      mChannels == Channels) {
+  if (mOutputIndexMask == OutputIndexMask
+      && mGain == Gain
+      && mFreq == Freq
+      && mBits == Bits
+      && mChannels == Channels) {
     return EFI_SUCCESS;
   }
 
   mOutputIndexMask = OutputIndexMask;
-  mVolume = Volume;
+  mGain = Gain;
   mFreq = Freq;
   mBits = Bits;
   mChannels = Channels;
 
   // If a parameter is invalid, return error.
-  if ((This == NULL) || (Volume > EFI_AUDIO_IO_PROTOCOL_MAX_VOLUME))
+  if (This == NULL) {
     return EFI_INVALID_PARAMETER;
+  }
 
   // Get private data.
   AudioIoPrivateData = AUDIO_IO_PRIVATE_DATA_FROM_THIS(This);
@@ -289,12 +351,10 @@ HdaCodecAudioIoSetupPlayback(
   }
   OutputIndexMask &= ~LShiftU64(MAX_UINT64, HdaCodecDev->OutputPortsCount);
 
-#if defined(HDA_CODEC_ERROR_ON_NO_OUTPUTS)
   // Fail visibily if nothing is requested.
-  if (OutputIndexMask == 0) {
+  if (PcdGetBool (PcdAudioCodecErrorOnNoOutputs) && OutputIndexMask == 0) {
     return EFI_INVALID_PARAMETER;
   }
-#endif
 
   // Avoid Coverity warnings (the bit mask checks actually ensure that these cannot be used uninitialised).
   StreamBits = 0;
@@ -465,7 +525,7 @@ HdaCodecAudioIoSetupPlayback(
 
   // Disable all non-selected widget paths.
   for (Index = 0, IndexMask = 1; Index < HdaCodecDev->OutputPortsCount; Index++, IndexMask <<= 1) {
-    if ((OutputIndexMask & IndexMask) == 0) {
+    if ((OutputIndexMask & IndexMask) != 0) {
       continue;
     }
     Status = HdaCodecDisableWidgetPath(HdaCodecDev->OutputPorts[Index]);
@@ -481,12 +541,10 @@ HdaCodecAudioIoSetupPlayback(
   // Save requested outputs.
   AudioIoPrivateData->SelectedOutputIndexMask = OutputIndexMask;
 
-#if !defined(HDA_CODEC_ERROR_ON_NO_OUTPUTS)
   // Nothing to play.
   if (OutputIndexMask == 0) {
     return EFI_SUCCESS;
   }
-#endif
 
   // Calculate stream format and setup stream.
   StreamFmt = HDA_CONVERTER_FORMAT_SET(Channels - 1, StreamBits,
@@ -501,17 +559,89 @@ HdaCodecAudioIoSetupPlayback(
     if ((OutputIndexMask & IndexMask) == 0) {
       continue;
     }
-    Status = HdaCodecEnableWidgetPath(HdaCodecDev->OutputPorts[Index], Volume, HdaStreamId, StreamFmt);
+    Status = HdaCodecEnableWidgetPath(HdaCodecDev->OutputPorts[Index], Gain, HdaStreamId, StreamFmt);
     if (EFI_ERROR(Status))
       goto CLOSE_STREAM;
   }
 
-  // Apply any codec-specific quirks.
-  if (HdaCodecDev->Quirks & HDA_CODEC_QUIRK_CIRRUSLOGIC) {
-    Status = HdaIo->SendCommand (HdaIo, 0x01,
-      HDA_CODEC_VERB (HDA_VERB_SET_GPIO_DATA, HDA_CIRRUSLOGIC_GPIO_ALL), &GpioData);
-    if (EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_WARN, "HDA: Failed to apply Cirrus Logic output enable, continuing anyway\n"));
+  //
+  // Enable GPIO pins. This is similar to how Linux drivers enable audio on e.g. Cirrus Logic and
+  // Realtek devices on Mac, by enabling specific GPIO pins as required.
+  // REF:
+  // - https://github.com/torvalds/linux/blob/6f513529296fd4f696afb4354c46508abe646541/sound/pci/hda/patch_cirrus.c#L43-L57
+  // - https://github.com/torvalds/linux/blob/6f513529296fd4f696afb4354c46508abe646541/sound/pci/hda/patch_cirrus.c#L493-L517
+  // - https://github.com/torvalds/linux/blob/6f513529296fd4f696afb4354c46508abe646541/sound/pci/hda/patch_realtek.c#L244-L258
+  //
+  // Note 1: On at least one WWHC system, waiting for current sound to finish playing stopped working when this was
+  // applied automatically, whereas everything already worked fine without this, so we now need to require users to
+  // specify at least `-gpio-setup` (which means: all stages, automatic pins') in the driver params, to use this.
+  //
+  // Note 2: So far we have found no need to specify anything other than 'all stages, automatic (i.e. all) pins', although
+  // we do know that not all systems require all stages (e.g. MBP10,2 only requires DATA stage; but based on Linux
+  // drivers, it is likely that some do), and almost certainly no systems require all pins.
+  //
+  if (gGpioSetupStageMask != 0) {
+    if (gGpioPinMask != 0) {
+      //
+      // Enable user-specified pins.
+      //
+      ChannelPayload = (UINT8)gGpioPinMask;
+    } else {
+      NumGpios = HDA_PARAMETER_GPIO_COUNT_NUM_GPIOS (HdaCodecDev->AudioFuncGroup->GpioCapabilities);
+      //
+      // According to Intel HDA spec this can be from 0 to 7, however we
+      // have seen 8 in the wild, and values up to 8 are perfectly usable.
+      // REF: https://github.com/acidanthera/bugtracker/issues/740#issuecomment-1005279476
+      //
+      if (NumGpios > 8) {
+        Status = EFI_INVALID_PARAMETER;
+        goto CLOSE_STREAM;
+      }
+      ChannelPayload = (1 << NumGpios) - 1; ///< Enable all available pins
+    }
+
+    if (ChannelPayload != 0) {
+      Status = EFI_SUCCESS;
+
+      if ((gGpioSetupStageMask & GPIO_SETUP_STAGE_ENABLE) != 0) {
+        Status = HdaIo->SendCommand (
+          HdaIo,
+          HdaCodecDev->AudioFuncGroup->NodeId,
+          HDA_CODEC_VERB (HDA_VERB_SET_GPIO_ENABLE_MASK, ChannelPayload),
+          &Response
+          );
+      }
+
+      if (!EFI_ERROR (Status)
+        && (gGpioSetupStageMask & GPIO_SETUP_STAGE_DIRECTION) != 0) {
+        Status = HdaIo->SendCommand (
+          HdaIo,
+          HdaCodecDev->AudioFuncGroup->NodeId,
+          HDA_CODEC_VERB (HDA_VERB_SET_GPIO_DIRECTION, ChannelPayload),
+          &Response
+          );
+      }
+
+      if (!EFI_ERROR (Status)
+        && (gGpioSetupStageMask & GPIO_SETUP_STAGE_DATA) != 0) {
+        gBS->Stall (MS_TO_MICROSECONDS (1));
+        Status = HdaIo->SendCommand (
+          HdaIo,
+          HdaCodecDev->AudioFuncGroup->NodeId,
+          HDA_CODEC_VERB (HDA_VERB_SET_GPIO_DATA, ChannelPayload),
+          &Response
+          );
+      }
+
+      DEBUG ((
+        EFI_ERROR (Status) ? DEBUG_WARN : DEBUG_INFO,
+        "HDA: GPIO setup on pins 0x%02X - %r\n",
+        ChannelPayload,
+        Status
+        ));
+
+      if (EFI_ERROR(Status))
+        goto CLOSE_STREAM;
     }
   }
   

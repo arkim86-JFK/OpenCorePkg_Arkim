@@ -58,6 +58,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <Protocol/GraphicsOutput.h>
 #include <Protocol/Security.h>
 #include <Protocol/Security2.h>
+#include <Protocol/SimplePointer.h>
 
 #define OC_EXIT_BOOT_SERVICES_HANDLER_MAX 5
 
@@ -413,6 +414,9 @@ OcReinstallProtocols (
     Config->Uefi.AppleInput.KeyInitialDelay,
     Config->Uefi.AppleInput.KeySubsequentDelay,
     Config->Uefi.AppleInput.GraphicsInputMirroring,
+    Config->Uefi.AppleInput.PointerPollMin,
+    Config->Uefi.AppleInput.PointerPollMax,
+    Config->Uefi.AppleInput.PointerPollMask,
     Config->Uefi.AppleInput.PointerSpeedDiv,
     Config->Uefi.AppleInput.PointerSpeedMul
     ) == NULL
@@ -450,6 +454,7 @@ OcLoadAppleSecureBoot (
   APPLE_SECURE_BOOT_PROTOCOL  *SecureBoot;
   CONST CHAR8                 *SecureBootModel;
   CONST CHAR8                 *RealSecureBootModel;
+  CONST CHAR8                 *DmgLoading;
   UINT8                       SecureBootPolicy;
 
   SecureBootModel = OC_BLOB_GET (&Config->Misc.Security.SecureBootModel);
@@ -477,11 +482,18 @@ OcLoadAppleSecureBoot (
   // essentially skipping secure boot in this case.
   // Do not allow enabling one but not the other.
   //
-  if (SecureBootPolicy != AppleImg4SbModeDisabled
-    && AsciiStrCmp (OC_BLOB_GET (&Config->Misc.Security.DmgLoading), "Any") == 0) {
-    DEBUG ((DEBUG_ERROR, "OC: Cannot use Secure Boot with Any DmgLoading!\n"));
-    CpuDeadLoop ();
-    return;
+  if (SecureBootPolicy != AppleImg4SbModeDisabled) {
+    DmgLoading = OC_BLOB_GET (&Config->Misc.Security.DmgLoading);
+    //
+    // Check against all valid values in case more are added.
+    //
+    if (AsciiStrCmp (DmgLoading, "Signed") != 0
+      && AsciiStrCmp (DmgLoading, "Disabled") != 0
+      && DmgLoading[0] != '\0') {
+      DEBUG ((DEBUG_ERROR, "OC: Cannot use Secure Boot with Any DmgLoading!\n"));
+      CpuDeadLoop ();
+      return;
+    }
   }
 
   DEBUG ((
@@ -821,6 +833,8 @@ OcLoadUefiSupport (
 {
   EFI_STATUS            Status;
   EFI_HANDLE            *DriversToConnect;
+  EFI_HANDLE            *HandleBuffer;
+  UINTN                 HandleCount;
   EFI_EVENT             Event;
   BOOLEAN               AvxEnabled;
 
@@ -926,6 +940,22 @@ OcLoadUefiSupport (
   } else {
     OcLoadDrivers (Storage, Config, NULL);
   }
+
+  DEBUG_CODE_BEGIN ();
+  HandleCount = 0;
+  HandleBuffer = NULL;
+  Status = gBS->LocateHandleBuffer (
+    ByProtocol,
+    &gEfiSimplePointerProtocolGuid,
+    NULL,
+    &HandleCount,
+    &HandleBuffer
+    );
+  DEBUG ((DEBUG_INFO, "OC: Found %u pointer devices - %r\n", HandleCount, Status));
+  if (!EFI_ERROR (Status)) {
+    FreePool (HandleBuffer);
+  }
+  DEBUG_CODE_END ();
 
   if (Config->Uefi.Apfs.EnableJumpstart) {
     OcApfsConfigure (
