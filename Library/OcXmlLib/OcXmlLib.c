@@ -1617,6 +1617,108 @@ XmlNodePrepend (
   return NewNode;
 }
 
+VOID
+XmlNodeRemoveByIndex (
+  IN OUT  XML_NODE     *Node,
+  IN      UINT32       Index
+  )
+{
+  ASSERT (Node != NULL);
+  ASSERT (Node->Children != NULL);
+  ASSERT (Index < Node->Children->NodeCount);
+
+  //
+  // Free the Index-th XML node.
+  //
+  XmlNodeFree (Node->Children->NodeList[Index]);
+
+  //
+  // Overwrite the Index-th node with remaining nodes.
+  //
+  CopyMem (
+    &Node->Children->NodeList[Index],
+    &Node->Children->NodeList[Index+1],
+    (Node->Children->NodeCount - 1 - Index) * sizeof (XML_NODE)
+    );
+
+  //
+  // Drop the last entry as the node above has been removed.
+  //
+  ZeroMem (&Node->Children->NodeList[Node->Children->NodeCount-1], sizeof (XML_NODE));
+  --Node->Children->NodeCount;
+}
+
+VOID
+XmlNodeRemove (
+  IN OUT  XML_NODE     *Node,
+  IN      XML_NODE     *ChildNode
+  )
+{
+  UINT32  Index;
+
+  ASSERT (Node != NULL);
+  ASSERT (Node->Children != NULL);
+  ASSERT (ChildNode != NULL);
+
+  for (Index = 0; CompareMem (Node->Children->NodeList[Index], ChildNode, sizeof (XML_NODE)) != 0; ++Index) {
+    //
+    // Locate ChildNode inside Node.
+    //
+  }
+  ASSERT (Index < Node->Children->NodeCount);
+
+  XmlNodeRemoveByIndex (Node, Index);
+}
+
+CONST CHAR8 *
+XmlUnescapeString (
+  IN      CONST CHAR8  *String
+  )
+{
+  UINTN  StringSize;
+  CHAR8  *Buffer;
+  CHAR8  *Pointer;
+
+  ASSERT (String != NULL);
+
+  StringSize = AsciiStrSize (String);
+  Pointer = (CHAR8 *) AllocatePool (StringSize);
+  if (Pointer == NULL) {
+    return NULL;
+  }
+
+  Buffer = Pointer;
+
+  while (*String != '\0') {
+    if (*String == '&') {
+      if (AsciiStrnCmp (String + 1, "apos;", L_STR_LEN ("apos;")) == 0) {
+        *Pointer++ = '\'';
+        String += L_STR_LEN ("&apos;");
+      } else if (AsciiStrnCmp (String + 1, "quot;", L_STR_LEN ("quot;")) == 0) {
+        *Pointer++ = '\"';
+        String += L_STR_LEN ("&quot;");
+      } else if (AsciiStrnCmp (String + 1, "amp;", L_STR_LEN ("amp;")) == 0) {
+        *Pointer++ = '&';
+        String += L_STR_LEN ("&amp;");
+      } else if (AsciiStrnCmp (String + 1, "lt;", L_STR_LEN ("lt;")) == 0) {
+        *Pointer++ = '<';
+        String += L_STR_LEN ("&lt;");
+      } else if (AsciiStrnCmp (String + 1, "gt;", L_STR_LEN ("gt;")) == 0) {
+        *Pointer++ = '>';
+        String += L_STR_LEN ("&gt;");
+      } else {
+        *Pointer++ = *String++;
+      }
+    } else {
+      *Pointer++ = *String++;
+    }
+  }
+
+  *Pointer = '\0';
+
+  return (CONST CHAR8 *) Buffer;
+}
+
 XML_NODE *
 PlistDocumentRoot (
   IN  CONST XML_DOCUMENT  *Document

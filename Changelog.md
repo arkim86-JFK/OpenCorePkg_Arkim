@@ -1,11 +1,27 @@
 OpenCore Changelog
 ==================
+#### v0.7.9
+- Added auto-detect `macOS Installer` volume name for use when `.disk_label` file cannot be displayed
+- Added `--restore-nosnoop` flag to AudioDxe, making v0.7.7 fix for Windows sound opt-in
+- Added new method to disable trim when `SetApfsTrimTimeout` is set to zero
+- Fixed `SetApfsTrimTimeout` on macOS 12 (only works when set to zero)
+- Added script to build qemu recovery images to macrecovery
+- Fixed selecting `SecureBootModel` on hypervisors (should be `x86legacy`)
+- Added kext blocking `Strategy` for prelinked and newer
+
 #### v0.7.8
 - Updated ocvalidate to warn about insecure `DmgLoading` with secure `SecureBootModel` (already disallowed in runtime)
 - Fixed AudioDxe not disabling unused channels after recent updates
 - Allow gain to track OS volume on old macOS without `SystemAudioVolumeDB`
 - Fixed crash on no mouse support when verifying password
 - Fixed AppleInternal CSR bit being set with `ProvideCustomSlide` enabled
+- Added support for `.contentFlavour` and `.contentDetails` files for boot entry protocol entries including OpenLinuxBoot
+- Added `LINUX_BOOT_ADD_RW` flag to OpenLinuxBoot to support e.g. EndeavourOS
+- Added `flags+=` and `flags-=` arguments to OpenLinuxBoot to simplify setting driver flags if needed
+- Fixed OpenLinuxBoot entry name disambiguation when `LINUX_BOOT_USE_LATEST` flag is clear
+- Updated builtin firmware versions for SMBIOS and the rest
+- Fixed crash in OpenLinuxBoot with partly (re-)installed Linux distro
+- Improved robustness in malformed PE image file parsing
 
 #### v0.7.7
 - Fixed rare crash caused by register corruption in the entry point
