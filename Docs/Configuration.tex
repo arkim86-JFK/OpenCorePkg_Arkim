@@ -2721,6 +2721,8 @@ blocking.
   \tightlist
   \item For Microsoft Hyper-V it provides the correct TSC and FSB values
     to the kernel, as well as disables CPU topology validation (10.8+).
+  \item For KVM and other hypervisors it provides precomputed MSR 35h
+    values solving kernel panic with \texttt{-cpu host}.
   \item For Intel CPUs it adds support for asymmetrical SMP systems
     (e.g. Intel Alder Lake) by patching core count to thread count along
     with the supplemental required changes (10.14+).
@@ -2768,7 +2770,7 @@ blocking.
   \href{https://interface31.ru/tech_it/2015/04/mozhno-li-effektivno-ispolzovat-ssd-bez-podderzhki-trim.html}{article}
   for details.
 
-  As of macOS 12.0, it is no longer possible to set trim timeout for APFS filesystems.
+  On macOS 12+, it is no longer possible to set trim timeout for APFS filesystems.
   However, trim can be disabled when the timeout value is set to \texttt{0}.
 
 \item

@@ -8,6 +8,8 @@ OpenCore Changelog
 - Added script to build qemu recovery images to macrecovery
 - Fixed selecting `SecureBootModel` on hypervisors (should be `x86legacy`)
 - Added kext blocking `Strategy` for prelinked and newer
+- Added global MSR 35h fix to `ProvideCurrentCpuInfo`, allowing `-cpu host` in KVM
+- Fixed potential memory corruption with AVX acceleration enabled
 
 #### v0.7.8
 - Updated ocvalidate to warn about insecure `DmgLoading` with secure `SecureBootModel` (already disallowed in runtime)
