@@ -1,6 +1,7 @@
 /** @file
-  Copyright (c) 2006 - 2019, Intel Corporation. All rights reserved.
-  Copyright (C) 2021, ISP RAS. All rights reserved.
+  Null OcDebugProtocolLib instance.
+
+  Copyright (C) 2020, Goldfish64. All rights reserved.
 
   All rights reserved.
 
@@ -20,37 +21,6 @@
 #include <Library/DebugLib.h>
 #include <Library/DevicePathLib.h>
 #include <Library/OcDebugLogLib.h>
-#include <Library/PrintLib.h>
-#include <Library/PcdLib.h>
-#include <Library/BaseMemoryLib.h>
-#include <Library/SerialPortLib.h>
-#include <Library/DebugPrintErrorLevelLib.h>
-
-//
-// Define the maximum debug and assert message length that this library supports
-//
-#define MAX_DEBUG_MESSAGE_LENGTH  0x100
-
-//
-// VA_LIST can not initialize to NULL for all compiler, so we use this to
-// indicate a null VA_LIST
-//
-VA_LIST     mVaListNull;
-
-/**
-  The constructor function initialize the Serial Port Library
-
-  @retval EFI_SUCCESS   The constructor always returns RETURN_SUCCESS.
-
-**/
-RETURN_STATUS
-EFIAPI
-BaseDebugLibSerialPortConstructor (
-  VOID
-  )
-{
-  return SerialPortInitialize ();
-}
 
 /**
   Prints a debug message to the debug output device if the specified error level is enabled.
@@ -74,121 +44,6 @@ DebugPrint (
   ...
   )
 {
-  VA_LIST  Marker;
-
-  VA_START (Marker, Format);
-  DebugVPrint (ErrorLevel, Format, Marker);
-  VA_END (Marker);
-}
-
-/**
-  Prints a debug message to the debug output device if the specified
-  error level is enabled base on Null-terminated format string and a
-  VA_LIST argument list or a BASE_LIST argument list.
-
-  If any bit in ErrorLevel is also set in DebugPrintErrorLevelLib function
-  GetDebugPrintErrorLevel (), then print the message specified by Format and
-  the associated variable argument list to the debug output device.
-
-  If Format is NULL, then ASSERT().
-
-  @param  ErrorLevel      The error level of the debug message.
-  @param  Format          Format string for the debug message to print.
-  @param  VaListMarker    VA_LIST marker for the variable argument list.
-  @param  BaseListMarker  BASE_LIST marker for the variable argument list.
-
-**/
-VOID
-DebugPrintMarker (
-  IN  UINTN         ErrorLevel,
-  IN  CONST CHAR8   *Format,
-  IN  VA_LIST       VaListMarker,
-  IN  BASE_LIST     BaseListMarker
-  )
-{
-  CHAR8    Buffer[MAX_DEBUG_MESSAGE_LENGTH];
-
-  //
-  // If Format is NULL, then ASSERT().
-  //
-  ASSERT (Format != NULL);
-
-  //
-  // Check driver debug mask value and global mask
-  //
-  if ((ErrorLevel & GetDebugPrintErrorLevel ()) == 0) {
-    return;
-  }
-
-  //
-  // Convert the DEBUG() message to an ASCII String
-  //
-  if (BaseListMarker == NULL) {
-    AsciiVSPrint (Buffer, sizeof (Buffer), Format, VaListMarker);
-  } else {
-    AsciiBSPrint (Buffer, sizeof (Buffer), Format, BaseListMarker);
-  }
-
-  //
-  // Send the print string to a Serial Port
-  //
-  SerialPortWrite ((UINT8 *)Buffer, AsciiStrLen (Buffer));
-}
-
-
-/**
-  Prints a debug message to the debug output device if the specified
-  error level is enabled.
-
-  If any bit in ErrorLevel is also set in DebugPrintErrorLevelLib function
-  GetDebugPrintErrorLevel (), then print the message specified by Format and
-  the associated variable argument list to the debug output device.
-
-  If Format is NULL, then ASSERT().
-
-  @param  ErrorLevel    The error level of the debug message.
-  @param  Format        Format string for the debug message to print.
-  @param  VaListMarker  VA_LIST marker for the variable argument list.
-
-**/
-VOID
-EFIAPI
-DebugVPrint (
-  IN  UINTN         ErrorLevel,
-  IN  CONST CHAR8   *Format,
-  IN  VA_LIST       VaListMarker
-  )
-{
-  DebugPrintMarker (ErrorLevel, Format, VaListMarker, NULL);
-}
-
-
-/**
-  Prints a debug message to the debug output device if the specified
-  error level is enabled.
-  This function use BASE_LIST which would provide a more compatible
-  service than VA_LIST.
-
-  If any bit in ErrorLevel is also set in DebugPrintErrorLevelLib function
-  GetDebugPrintErrorLevel (), then print the message specified by Format and
-  the associated variable argument list to the debug output device.
-
-  If Format is NULL, then ASSERT().
-
-  @param  ErrorLevel      The error level of the debug message.
-  @param  Format          Format string for the debug message to print.
-  @param  BaseListMarker  BASE_LIST marker for the variable argument list.
-
-**/
-VOID
-EFIAPI
-DebugBPrint (
-  IN  UINTN         ErrorLevel,
-  IN  CONST CHAR8   *Format,
-  IN  BASE_LIST     BaseListMarker
-  )
-{
-  DebugPrintMarker (ErrorLevel, Format, mVaListNull, BaseListMarker);
 }
 
 
@@ -223,26 +78,6 @@ DebugAssert (
   IN CONST CHAR8  *Description
   )
 {
-  CHAR8  Buffer[MAX_DEBUG_MESSAGE_LENGTH];
-
-  //
-  // Generate the ASSERT() message in Ascii format
-  //
-  AsciiSPrint (Buffer, sizeof (Buffer), "ASSERT [%a] %a(%d): %a\n", gEfiCallerBaseName, FileName, LineNumber, Description);
-
-  //
-  // Send the print string to the Console Output device
-  //
-  SerialPortWrite ((UINT8 *)Buffer, AsciiStrLen (Buffer));
-
-  //
-  // Generate a Breakpoint, DeadLoop, or NOP based on PCD settings
-  //
-  if ((PcdGet8(PcdDebugPropertyMask) & DEBUG_PROPERTY_ASSERT_BREAKPOINT_ENABLED) != 0) {
-    CpuBreakpoint ();
-  } else if ((PcdGet8(PcdDebugPropertyMask) & DEBUG_PROPERTY_ASSERT_DEADLOOP_ENABLED) != 0) {
-    CpuDeadLoop ();
-  }
 }
 
 
@@ -267,15 +102,7 @@ DebugClearMemory (
   IN  UINTN  Length
   )
 {
-  //
-  // If Buffer is NULL, then ASSERT().
-  //
-  ASSERT (Buffer != NULL);
-
-  //
-  // SetMem() checks for the the ASSERT() condition on Length and returns Buffer
-  //
-  return SetMem (Buffer, Length, PcdGet8(PcdDebugClearMemoryValue));
+  return Buffer;
 }
 
 
@@ -295,7 +122,7 @@ DebugAssertEnabled (
   VOID
   )
 {
-  return (BOOLEAN) ((PcdGet8(PcdDebugPropertyMask) & DEBUG_PROPERTY_DEBUG_ASSERT_ENABLED) != 0);
+  return FALSE;
 }
 
 
@@ -315,7 +142,7 @@ DebugPrintEnabled (
   VOID
   )
 {
-  return (BOOLEAN) ((PcdGet8(PcdDebugPropertyMask) & DEBUG_PROPERTY_DEBUG_PRINT_ENABLED) != 0);
+  return FALSE;
 }
 
 
@@ -335,7 +162,7 @@ DebugCodeEnabled (
   VOID
   )
 {
-  return (BOOLEAN) ((PcdGet8(PcdDebugPropertyMask) & DEBUG_PROPERTY_DEBUG_CODE_ENABLED) != 0);
+  return FALSE;
 }
 
 
@@ -355,7 +182,7 @@ DebugClearMemoryEnabled (
   VOID
   )
 {
-  return (BOOLEAN) ((PcdGet8(PcdDebugPropertyMask) & DEBUG_PROPERTY_CLEAR_MEMORY_ENABLED) != 0);
+  return FALSE;
 }
 
 
@@ -374,7 +201,7 @@ DebugPrintLevelEnabled (
   IN  CONST UINTN        ErrorLevel
   )
 {
-  return (BOOLEAN) ((ErrorLevel & PcdGet32(PcdFixedDebugPrintErrorLevel)) != 0);
+  return FALSE;
 }
 
 /**

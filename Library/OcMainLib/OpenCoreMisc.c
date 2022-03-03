@@ -31,6 +31,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <Library/OcCpuLib.h>
 #include <Library/OcDebugLogLib.h>
 #include <Library/OcDeviceMiscLib.h>
+#include <Library/OcLogAggregatorLib.h>
 #include <Library/OcSmbiosLib.h>
 #include <Library/OcStringLib.h>
 #include <Library/OcVariableLib.h>
@@ -342,7 +343,7 @@ OcMiscGetVersionString (
 
   STATIC_ASSERT (
     L_STR_LEN (OPEN_CORE_TARGET) == 3,
-    "OPEN_CORE_TARGET must XYZ format, where XYZ is build target."
+    "OPEN_CORE_TARGET must follow XYZ format, where XYZ is build target."
     );
 
   STATIC CHAR8 mOpenCoreVersion[] = {
