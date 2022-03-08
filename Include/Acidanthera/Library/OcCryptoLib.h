@@ -19,13 +19,22 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #ifndef OC_CRYPTO_LIB_H
 #define OC_CRYPTO_LIB_H
 
-#include <Library/OcGuardLib.h>
-
 //
 // Default to 128-bit key length for AES.
 //
 #ifndef CONFIG_AES_KEY_SIZE
 #define CONFIG_AES_KEY_SIZE 16
+#endif
+
+//
+// Set supported hashes to all by default.
+//
+#ifndef CONFIG_HAS_SUPPORTED_HASHES
+#define OC_CRYPTO_SUPPORTS_SHA256 1
+#define OC_CRYPTO_SUPPORTS_SHA384 1
+#define OC_CRYPTO_SUPPORTS_SHA512 1
+#define OC_CRYPTO_SUPPORTS_SHA1   1
+#define OC_CRYPTO_SUPPORTS_MD5    1
 #endif
 
 //
@@ -381,7 +390,7 @@ Sha384 (
 
 BOOLEAN
 EFIAPI
-TryEnableAvx (
+TryEnableAccel (
   VOID
   );
 
@@ -408,6 +417,12 @@ SigVerifyShaHashBySize (
   );
 
 /**
+  @param[in] ModulusSize    Modulus size in bytes.
+**/
+#define RSA_SCRATCH_BUFFER_SIZE(ModulusSize) \
+  ((ModulusSize) * 3)
+
+/**
   Verify a RSA PKCS1.5 signature against an expected hash.
   The exponent is always 65537 as per the format specification.
 
@@ -417,6 +432,7 @@ SigVerifyShaHashBySize (
   @param[in] Hash           The Hash digest of the signed data.
   @param[in] HashSize       Size, in bytes, of Hash.
   @param[in] Algorithm      The RSA algorithm used.
+  @param[in] Scratch        Scratch buffer 3xModulo.
 
   @returns  Whether the signature has been successfully verified as valid.
 
@@ -428,7 +444,36 @@ RsaVerifySigHashFromKey (
   IN UINTN                    SignatureSize,
   IN CONST UINT8              *Hash,
   IN UINTN                    HashSize,
-  IN OC_SIG_HASH_TYPE         Algorithm
+  IN OC_SIG_HASH_TYPE         Algorithm,
+  IN VOID                     *Scratch
+  );
+
+/**
+  Verify RSA PKCS1.5 signed data against its signature.
+  The modulus' size must be a multiple of the configured BIGNUM word size.
+  This will be true for any conventional RSA, which use two's potencies.
+  The exponent is always 65537 as per the format specification.
+
+  @param[in] Key            The RSA Public Key.
+  @param[in] Signature      The RSA signature to be verified.
+  @param[in] SignatureSize  Size, in bytes, of Signature.
+  @param[in] Data           The signed data to verify.
+  @param[in] DataSize       Size, in bytes, of Data.
+  @param[in] Algorithm      The RSA algorithm used.
+  @param[in] Scratch        Scratch buffer 3xModulo.
+
+  @returns  Whether the signature has been successfully verified as valid.
+
+**/
+BOOLEAN
+RsaVerifySigDataFromKey (
+  IN CONST OC_RSA_PUBLIC_KEY  *Key,
+  IN CONST UINT8              *Signature,
+  IN UINTN                    SignatureSize,
+  IN CONST UINT8              *Data,
+  IN UINTN                    DataSize,
+  IN OC_SIG_HASH_TYPE         Algorithm,
+  IN VOID                     *Scratch
   );
 
 /**
@@ -458,32 +503,6 @@ RsaVerifySigDataFromData (
   IN CONST UINT8       *Data,
   IN UINTN             DataSize,
   IN OC_SIG_HASH_TYPE  Algorithm
-  );
-
-/**
-  Verify RSA PKCS1.5 signed data against its signature.
-  The modulus' size must be a multiple of the configured BIGNUM word size.
-  This will be true for any conventional RSA, which use two's potencies.
-  The exponent is always 65537 as per the format specification.
-
-  @param[in] Key            The RSA Public Key.
-  @param[in] Signature      The RSA signature to be verified.
-  @param[in] SignatureSize  Size, in bytes, of Signature.
-  @param[in] Data           The signed data to verify.
-  @param[in] DataSize       Size, in bytes, of Data.
-  @param[in] Algorithm      The RSA algorithm used.
-
-  @returns  Whether the signature has been successfully verified as valid.
-
-**/
-BOOLEAN
-RsaVerifySigDataFromKey (
-  IN CONST OC_RSA_PUBLIC_KEY  *Key,
-  IN CONST UINT8              *Signature,
-  IN UINTN                    SignatureSize,
-  IN CONST UINT8              *Data,
-  IN UINTN                    DataSize,
-  IN OC_SIG_HASH_TYPE         Algorithm
   );
 
 /**
