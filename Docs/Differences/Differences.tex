@@ -1,7 +1,7 @@
 \documentclass[]{article}
 %DIF LATEXDIFF DIFFERENCE FILE
-%DIF DEL PreviousConfiguration.tex   Wed Mar  9 17:05:50 2022
-%DIF ADD ../Configuration.tex        Thu Mar 10 21:13:47 2022
+%DIF DEL PreviousConfiguration.tex   Thu Mar 10 21:36:27 2022
+%DIF ADD ../Configuration.tex        Tue Mar 22 16:40:30 2022
 
 \usepackage{lmodern}
 \usepackage{amssymb,amsmath}
@@ -47,7 +47,11 @@
   captionpos=b,
   basicstyle=\ttfamily\normalsize,
   keepspaces=true,
-  morekeywords={git, make, build, ioreg, grep, nvram, sort, sudo, diskutil, gfxutil, strings, dd, cut, python},
+%DIF 47c47
+%DIF <   morekeywords={git, make, build, ioreg, grep, nvram, sort, sudo, diskutil, gfxutil, strings, dd, cut, python},
+%DIF -------
+  morekeywords={git, make, build, ioreg, grep, nvram, sort, sudo, diskutil, gfxutil, strings, dd, cut, python3}, %DIF > 
+%DIF -------
   literate =
     {"}{{\textquotedbl}}1
     {'}{{\textquotesingle}}1
@@ -2708,7 +2712,24 @@ blocking.
   typically have compatible AHCI controllers.
 
 \item
-  \texttt{ForceSecureBootScheme}\\
+  \DIFaddbegin \texttt{\DIFadd{ForceAquantiaEthernet}}\\
+  \textbf{\DIFadd{Type}}\DIFadd{: }\texttt{\DIFadd{plist\ boolean}}\\
+  \textbf{\DIFadd{Failsafe}}\DIFadd{: }\texttt{\DIFadd{false}}\\
+  \textbf{\DIFadd{Requirement}}\DIFadd{: 10.15.4}\\
+  \textbf{\DIFadd{Description}}\DIFadd{: Enable Aquantia AQtion AQC-107s based 10GbE network cards support.
+}
+
+  \DIFadd{This option enables Aquantia AQtion AQC-107s based 10GbE network cards support,
+  which used to work natively before macOS 10.15.4.
+}
+
+  \emph{\DIFadd{Note}}\DIFadd{: In order for Aquantia cards to properly function,
+  }\texttt{\DIFadd{DisableIoMapper}} \DIFadd{must be disabled, }\texttt{\DIFadd{DMAR}} \DIFadd{ACPI table must not be dropped,
+  and }\texttt{\DIFadd{VT-d}} \DIFadd{must be enabled in BIOS.
+}
+
+\item
+  \DIFaddend \texttt{ForceSecureBootScheme}\\
   \textbf{Type}: \texttt{plist\ boolean}\\
   \textbf{Failsafe}: \texttt{false}\\
   \textbf{Requirement}: 11\\
@@ -2821,23 +2842,25 @@ blocking.
 
   One way to workaround the problem is to increase the timeout to an extremely
   high value, which at the cost of slow boot times (extra minutes) will
-  ensure that all the blocks are trimmed. Set this option to a high value,
-  such as \texttt{4294967295}, to ensure that all blocks are trimmed.
+  ensure that all the blocks are trimmed. \DIFdelbegin \DIFdel{Set }\DIFdelend \DIFaddbegin \DIFadd{Setting }\DIFaddend this option to a high value,
+  such as \texttt{4294967295} \DIFdelbegin \DIFdel{, to ensure }\DIFdelend \DIFaddbegin \DIFadd{(a.k.a. }\texttt{\DIFadd{-1}}\DIFadd{) ensures }\DIFaddend that all blocks are trimmed.
   Alternatively, use over-provisioning, if supported, or create
   a dedicated unmapped partition where the reserve blocks can be found
-  by the controller. Conversely, the trim operation can be disabled by
-  setting a very low timeout value. e.g. \texttt{999}. Refer to this
+  by the controller. Conversely, the trim operation can be \DIFaddbegin \DIFadd{mostly }\DIFaddend disabled by
+  setting a very low timeout value\DIFdelbegin \DIFdel{. e.g. }\texttt{\DIFdel{999}}%DIFAUXCMD
+\DIFdel{. }\DIFdelend \DIFaddbegin \DIFadd{, while }\texttt{\DIFadd{0}} \DIFadd{entirely disables it. }\DIFaddend Refer to this
   \href{https://interface31.ru/tech_it/2015/04/mozhno-li-effektivno-ispolzovat-ssd-bez-podderzhki-trim.html}{article}
   for details.
 
-  On macOS 12+, it is no longer possible to set trim timeout for APFS filesystems.
-  However, trim can be disabled when the timeout value is set to \texttt{0}.
-
-  \DIFaddbegin \emph{\DIFadd{Note}}\DIFadd{: System Information may still report }\texttt{\DIFadd{TRIM Support: Yes}} \DIFadd{with this
-  option set to }\texttt{\DIFadd{0}}\DIFadd{. Yet, this is false positive and trim is de facto disabled.
+  On macOS 12+, it is no longer possible to \DIFdelbegin \DIFdel{set }\DIFdelend \DIFaddbegin \DIFadd{specify }\DIFaddend trim timeout for APFS filesystems.
+  However, \DIFdelbegin \DIFdel{trim }\DIFdelend \DIFaddbegin \DIFadd{it }\DIFaddend can be disabled \DIFdelbegin \DIFdel{when the timeout value is }\DIFdelend \DIFaddbegin \DIFadd{by setting }\texttt{\DIFadd{0}}\DIFadd{.
 }
 
-\DIFaddend \item
+  \emph{\DIFadd{Note}}\DIFadd{: System Information may still report }\texttt{\DIFadd{TRIM Support: Yes}} \DIFadd{with this
+  option }\DIFaddend set to \texttt{0}. \DIFaddbegin \DIFadd{Yet, this is false positive and trim is de facto disabled.
+}\DIFaddend 
+
+\item
   \texttt{ThirdPartyDrives}\\
   \textbf{Type}: \texttt{plist\ boolean}\\
   \textbf{Failsafe}: \texttt{false}\\
@@ -3721,10 +3744,13 @@ the default boot entry choice will remain changed until the next manual reconfig
   Starting with macOS Catalina, kernel panics are stored in JSON format and thus
   need to be preprocessed before passing to \texttt{kpdescribe.sh}:
 
-\begin{lstlisting}[label=kpanic, style=ocbash]
+\DIFmodbegin
+\begin{lstlisting}[label=kpanic, style=ocbash,alsolanguage=DIFcode]
 cat Kernel.panic | grep macOSProcessedStackshotData |
-  python -c 'import json,sys;print(json.load(sys.stdin)["macOSPanicString"])'
+%DIF <   python -c 'import json,sys;print(json.load(sys.stdin)["macOSPanicString"])'
+%DIF >   python3 -c 'import json,sys;print(json.load(sys.stdin)["macOSPanicString"])'
 \end{lstlisting}
+\DIFmodend
 
 \item
   \texttt{DisableWatchDog}\\

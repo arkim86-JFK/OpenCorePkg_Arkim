@@ -165,7 +165,7 @@ jobs:
       - name: Install Dependencies
         run: |
           brew install shellcheck
-          pip2 install pyyaml
+          python3 -m pip install pyyaml
         env:
           HOMEBREW_NO_INSTALL_CLEANUP: 1
 
@@ -181,7 +181,7 @@ jobs:
         run: |
           pwd
           ls
-          python2 ./update_generated.py  || exit 1
+          python3 ./update_generated.py  || exit 1
           if [ "$(git status --porcelain)" != "" ]; then echo "DataBase desync"; exit 1 ; fi
 
       - name: Lint Samples
