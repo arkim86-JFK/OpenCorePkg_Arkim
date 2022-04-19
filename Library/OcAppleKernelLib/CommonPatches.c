@@ -597,7 +597,7 @@ mRemoveUsbLimitIoP1Find[] = {
 };
 
 STATIC
-UINT8
+CONST UINT8
 mRemoveUsbLimitIoP1Replace[] = {
   0x40, 0x0F, 0x87
 };
@@ -979,13 +979,13 @@ PatchDummyPowerManagement (
 }
 
 STATIC
-UINT8
+CONST UINT8
 mIncreasePciBarSizePatchFind[] = {
   0x00, 0x00, 0x00, 0x40
 };
 
 STATIC
-UINT8
+CONST UINT8
 mIncreasePciBarSizePatchReplace[] = {
   0x00, 0x00, 0x00, 0x80
 };
@@ -1006,13 +1006,13 @@ mIncreasePciBarSizePatch = {
 };
 
 STATIC
-UINT8
+CONST UINT8
 mIncreasePciBarSizePatchLegacyFind[] = {
   0x01, 0x00, 0x00, 0x40
 };
 
 STATIC
-UINT8
+CONST UINT8
 mIncreasePciBarSizePatchLegacyReplace[] = {
   0x01, 0x00, 0x00, 0x80
 };
@@ -1059,6 +1059,155 @@ PatchIncreasePciBarSize (
     }
   } else {
     DEBUG ((DEBUG_INFO, "OCAK: Patch success com.apple.iokit.IOPCIFamily IncreasePciBarSize\n"));
+  }
+
+  return Status;
+}
+
+STATIC
+CONST UINT8
+mSerialDevicePmioFind[] = {
+  0x66, 0xBA, 0xF8, 0x03  ///< mov dx, 0x03F[8-9A-F]
+};
+
+STATIC
+UINTN
+mPmioRegisterBase = 0;    ///< To be set by PatchSetPciSerialDevice()
+
+STATIC
+UINT32
+mPmioRegisterStride = 1;  ///< To be set by PatchSetPciSerialDevice()
+
+STATIC
+CONST UINTN
+mInOutMaxDistance = 64;
+
+VOID
+PatchSetPciSerialDevice (
+  IN  UINTN  RegisterBase,
+  IN  UINT32 RegisterStride
+  )
+{
+  //
+  // FIXME: This is really ugly, make quirks take a context param.
+  //
+  if (RegisterBase <= MAX_UINT16) {
+    DEBUG ((DEBUG_INFO, "OCAK: Registering PCI serial device PMIO port 0x%04X\n", RegisterBase));
+    CopyMem (&mPmioRegisterBase, &RegisterBase, sizeof (RegisterBase));
+
+    DEBUG ((DEBUG_INFO, "OCAK: Registering PCI serial device register stride %u\n", RegisterStride));
+    CopyMem (&mPmioRegisterStride, &RegisterStride, sizeof (RegisterStride));
+  } else {
+    DEBUG ((DEBUG_INFO, "OCAK: NOT registering unsupported PCI serial device register base 0x%X", RegisterBase));
+  }
+
+  //
+  // TODO: Add proper MMIO patch.
+  //
+}
+
+STATIC
+EFI_STATUS
+PatchCustomPciSerialPmio (
+  IN OUT PATCHER_CONTEXT    *Patcher
+  )
+{
+  UINTN       Count;
+  UINT8       *Walker;
+  UINT8       *WalkerPmio;
+  UINTN       Pmio;
+  UINT8       *WalkerEnd;
+  UINT8       *WalkerTmp;
+
+  ASSERT (Patcher != NULL);
+
+  Count     = 0;
+  Walker    = (UINT8 *) MachoGetMachHeader (&Patcher->MachContext);
+  WalkerEnd = Walker + MachoGetFileSize (&Patcher->MachContext) - mInOutMaxDistance;
+
+  while (Walker < WalkerEnd) {
+    if (Walker[0] == mSerialDevicePmioFind[0]
+      && Walker[1] == mSerialDevicePmioFind[1]
+      && (Walker[2] & 0xF8U) == mSerialDevicePmioFind[2]
+      && Walker[3] == mSerialDevicePmioFind[3]) {
+      DEBUG ((
+        DEBUG_VERBOSE,
+        "OCAK: Matched PMIO serial register base <%02X %02X %02X %02X>\n",
+        Walker[0],
+        Walker[1],
+        Walker[2],
+        Walker[3]
+        ));
+      WalkerPmio = &Walker[2];
+
+      WalkerTmp = Walker + mInOutMaxDistance;
+      while (Walker < WalkerTmp) {
+        //
+        // Locate instruction in (0xEC) or out (0xEE).
+        //
+        if (*Walker == 0xEC || *Walker == 0xEE) {
+          DEBUG ((
+            DEBUG_VERBOSE,
+            "OCAK: Matched PMIO serial register base context %a <%02X>, patching register base\n",
+            *Walker == 0xEC ? "in" : "out",
+            *Walker
+            ));
+
+          //
+          // Patch PMIO.
+          //
+          DEBUG ((DEBUG_VERBOSE, "OCAK: Before register base patch <%02X %02X>\n", WalkerPmio[0], WalkerPmio[1]));
+          Pmio = mPmioRegisterBase + (*WalkerPmio & 7U) * mPmioRegisterStride;
+          WalkerPmio[0] = Pmio & 0xFFU;
+          WalkerPmio[1] = (Pmio >> 8U) & 0xFFU;
+          DEBUG ((DEBUG_VERBOSE, "OCAK: After register base patch <%02X %02X>\n", WalkerPmio[0], WalkerPmio[1]));
+
+          ++Count;
+          break;
+        }
+
+        ++Walker;
+      }
+    }
+
+    //
+    // Continue searching.
+    //
+    ++Walker;
+  }
+
+  if (Count > 0) {
+    DEBUG ((DEBUG_INFO, "OCAK: Patched CustomPciSerialDevice PMIO port %u times\n", Count));
+    return EFI_SUCCESS;
+  }
+
+  DEBUG ((DEBUG_INFO, "OCAK: Failed to patch CustomPciSerialDevice PMIO port!\n"));
+  return EFI_NOT_FOUND;
+}
+
+STATIC
+EFI_STATUS
+PatchCustomPciSerialDevice (
+  IN OUT PATCHER_CONTEXT    *Patcher,
+  IN     UINT32             KernelVersion
+  )
+{
+  EFI_STATUS  Status;
+
+  Status = EFI_INVALID_PARAMETER;
+  if ((mPmioRegisterBase != 0 && mPmioRegisterStride > 1)
+    && (mPmioRegisterBase + 7U * mPmioRegisterStride) <= MAX_UINT16) {
+    Status = PatchCustomPciSerialPmio (Patcher);
+  }
+
+  //
+  // TODO: Check MMIO patch again.
+  //
+
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_INFO, "OCAK: Failed to apply patch CustomPciSerialDevice - %r\n"));
+  } else {
+    DEBUG ((DEBUG_INFO, "OCAK: Patch success CustomPciSerialDevice\n"));
   }
 
   return Status;
@@ -1857,42 +2006,7 @@ PatchLegacyCommpage (
 
 STATIC
 CONST UINT8
-mAquantiaEthernetPatchFindV1[] = {
-  0x41, 0xC7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  ///< mov dword ptr [whatever], 0
-  0xE9                                             ///< jmp
-};
-
-STATIC
-CONST UINT8
-mAquantiaEthernetPatchReplaceV1[] = {
-  0x41, 0xC7, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,  ///< mov dword ptr [whatever], 1
-  0xE9                                             ///< jmp
-};
-
-STATIC
-CONST UINT8
-mAquantiaEthernetPatchMaskV1[] = {
-  0xFF, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00,
-  0xFF
-};
-
-STATIC
-PATCHER_GENERIC_PATCH
-mAquantiaEthernetPatchV1 = {
-  .Comment = DEBUG_POINTER ("ForceAquantiaEthernetV1"),
-  .Base    = "__ZN30AppleEthernetAquantiaAqtion10718checkConfigSupportERiS0_",
-  .Find    = mAquantiaEthernetPatchFindV1,
-  .Mask    = mAquantiaEthernetPatchMaskV1,
-  .Replace = mAquantiaEthernetPatchReplaceV1,
-  .ReplaceMask = mAquantiaEthernetPatchMaskV1,
-  .Size    = sizeof (mAquantiaEthernetPatchFindV1),
-  .Count   = 1,
-  .Skip    = 0
-};
-
-STATIC
-CONST UINT8
-mAquantiaEthernetPatchFindV2[] = {
+mAquantiaEthernetPatchFindShikumo[] = {
   0x83, 0x7D, 0x00, 0x00,              ///< cmp dword [rbp+whatever], whatever
   0x0F, 0x84, 0x00, 0x00, 0x00, 0x00,  ///< je unsupported
   0x83, 0x7D                           ///< LBL:
@@ -1900,7 +2014,7 @@ mAquantiaEthernetPatchFindV2[] = {
 
 STATIC
 CONST UINT8
-mAquantiaEthernetPatchFindMaskV2[] = {
+mAquantiaEthernetPatchFindMaskShikumo[] = {
   0xFF, 0xFF, 0x00, 0x00,
   0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00,
   0xFF, 0xFF
@@ -1908,7 +2022,7 @@ mAquantiaEthernetPatchFindMaskV2[] = {
 
 STATIC
 CONST UINT8
-mAquantiaEthernetPatchReplaceV2[] = {
+mAquantiaEthernetPatchReplaceShikumo[] = {
   0x83, 0x7D, 0x00, 0x00,              ///< cmp dword [rbp+whatever], whatever
   0xEB, 0x04, 0x90, 0x90, 0x90, 0x90,  ///< jmp LBL
   0x83, 0x7D                           ///< LBL:
@@ -1916,7 +2030,7 @@ mAquantiaEthernetPatchReplaceV2[] = {
 
 STATIC
 CONST UINT8
-mAquantiaEthernetPatchReplaceMaskV2[] = {
+mAquantiaEthernetPatchReplaceMaskShikumo[] = {
   0xFF, 0xFF, 0x00, 0x00,
   0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
   0xFF, 0xFF
@@ -1924,14 +2038,49 @@ mAquantiaEthernetPatchReplaceMaskV2[] = {
 
 STATIC
 PATCHER_GENERIC_PATCH
-mAquantiaEthernetPatchV2 = {
-  .Comment = DEBUG_POINTER ("ForceAquantiaEthernetV2"),
+mAquantiaEthernetPatchShikumo = {
+  .Comment = DEBUG_POINTER ("ForceAquantiaEthernetShikumo"),
   .Base    = "__ZN27AppleEthernetAquantiaAqtion5startEP9IOService",
-  .Find    = mAquantiaEthernetPatchFindV2,
-  .Mask    = mAquantiaEthernetPatchFindMaskV2,
-  .Replace = mAquantiaEthernetPatchReplaceV2,
-  .ReplaceMask = mAquantiaEthernetPatchReplaceMaskV2,
-  .Size    = sizeof (mAquantiaEthernetPatchFindV2),
+  .Find    = mAquantiaEthernetPatchFindShikumo,
+  .Mask    = mAquantiaEthernetPatchFindMaskShikumo,
+  .Replace = mAquantiaEthernetPatchReplaceShikumo,
+  .ReplaceMask = mAquantiaEthernetPatchReplaceMaskShikumo,
+  .Size    = sizeof (mAquantiaEthernetPatchFindShikumo),
+  .Count   = 1,
+  .Skip    = 0
+};
+
+STATIC
+CONST UINT8
+mAquantiaEthernetPatchFindMieze[] = {
+  0x41, 0xC7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  ///< mov dword ptr [whatever], 0
+  0xE9                                             ///< jmp
+};
+
+STATIC
+CONST UINT8
+mAquantiaEthernetPatchReplaceMieze[] = {
+  0x41, 0xC7, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,  ///< mov dword ptr [whatever], 1
+  0xE9                                             ///< jmp
+};
+
+STATIC
+CONST UINT8
+mAquantiaEthernetPatchMaskMieze[] = {
+  0xFF, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00,
+  0xFF
+};
+
+STATIC
+PATCHER_GENERIC_PATCH
+mAquantiaEthernetPatchMieze = {
+  .Comment = DEBUG_POINTER ("ForceAquantiaEthernetMieze"),
+  .Base    = "__ZN30AppleEthernetAquantiaAqtion10718checkConfigSupportERiS0_",
+  .Find    = mAquantiaEthernetPatchFindMieze,
+  .Mask    = mAquantiaEthernetPatchMaskMieze,
+  .Replace = mAquantiaEthernetPatchReplaceMieze,
+  .ReplaceMask = mAquantiaEthernetPatchMaskMieze,
+  .Size    = sizeof (mAquantiaEthernetPatchFindMieze),
   .Count   = 1,
   .Skip    = 0
 };
@@ -1946,36 +2095,34 @@ PatchAquantiaEthernet (
   EFI_STATUS   Status;
 
   ASSERT (Patcher != NULL);
-
-  //
-  // FIXME: Check whether any patches are required before 10.15.4.
-  //
   
   //
   // This patch is not required before macOS 10.15.4.
   //
   if (!OcMatchDarwinVersion (KernelVersion, KERNEL_VERSION (KERNEL_VERSION_CATALINA, 4, 0), 0)) {
-    DEBUG ((DEBUG_INFO, "OCAK: Skipping patching AquantiaEthernet before %u\n", KernelVersion));
+    DEBUG ((DEBUG_INFO, "OCAK: Skipping patching AquantiaEthernet on %u\n", KernelVersion));
     return EFI_SUCCESS;
   }
-
+  
   //
-  // In most cases either patch will work fine.
-  // However, patch V2 by Shikumo is preferred.
-  // Thanks to Mieze and Shikumo for the patches.
+  // Shikumo's patch can be applied to a wider range, not limited to AQC 107 series,
+  // thus preferred.
   //
-  Status = PatcherApplyGenericPatch (Patcher, &mAquantiaEthernetPatchV2);
+  Status = PatcherApplyGenericPatch (Patcher, &mAquantiaEthernetPatchShikumo);
   if (!EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_INFO, "OCAK: Patch success Aquantia Ethernet v2\n"));
+    DEBUG ((DEBUG_INFO, "OCAK: Patch success Aquantia Ethernet Shikumo\n"));
     return Status;
   }
 
-  DEBUG ((DEBUG_INFO, "OCAK: Failed to apply Aquantia Ethernet patch v2 - %r, trying v1\n", Status));
-  Status = PatcherApplyGenericPatch (Patcher, &mAquantiaEthernetPatchV1);
+  //
+  // In case Shikumo's patch failed, try Mieze's so at least AQC 107 will work.
+  //
+  DEBUG ((DEBUG_INFO, "OCAK: Failed to apply Aquantia Ethernet patch Shikumo - %r, trying Mieze\n", Status));
+  Status = PatcherApplyGenericPatch (Patcher, &mAquantiaEthernetPatchMieze);
   if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_INFO, "OCAK: Failed to apply Aquantia Ethernet patch v1 - %r\n", Status));
+    DEBUG ((DEBUG_INFO, "OCAK: Failed to apply Aquantia Ethernet patch Mieze - %r\n", Status));
   } else {
-    DEBUG ((DEBUG_INFO, "OCAK: Patch success Aquantia Ethernet v1\n"));
+    DEBUG ((DEBUG_INFO, "OCAK: Patch success Aquantia Ethernet Mieze\n"));
   }
 
   return Status;
@@ -2124,8 +2271,7 @@ PatchSetApfsTrimTimeout (
   //
   // Disable trim using another patch when timeout is 0.
   //
-  if (mApfsTimeoutReplace[2] == 0 && mApfsTimeoutReplace[3] == 0
-    && mApfsTimeoutReplace[4] == 0 && mApfsTimeoutReplace[5] == 0) {
+  if (IsZeroBuffer (&mApfsTimeoutReplace[2], sizeof (UINT32))) {
     Status = PatcherApplyGenericPatch (Patcher, &mApfsDisableTrimPatch);
     if (EFI_ERROR (Status)) {
       DEBUG ((DEBUG_INFO, "OCAK: Failed to apply patch ApfsDisableTrim - %r\n", Status));
@@ -2163,6 +2309,7 @@ KERNEL_QUIRK gKernelQuirks[] = {
   [KernelQuirkAppleXcpmCfgLock]        = { NULL,                                            PatchAppleXcpmCfgLock },
   [KernelQuirkAppleXcpmExtraMsrs]      = { NULL,                                            PatchAppleXcpmExtraMsrs },
   [KernelQuirkAppleXcpmForceBoost]     = { NULL,                                            PatchAppleXcpmForceBoost },
+  [KernelQuirkCustomPciSerialDevice]   = { NULL,                                            PatchCustomPciSerialDevice },
   [KernelQuirkCustomSmbiosGuid1]       = { "com.apple.driver.AppleSMBIOS",                  PatchCustomSmbiosGuid },
   [KernelQuirkCustomSmbiosGuid2]       = { "com.apple.driver.AppleACPIPlatform",            PatchCustomSmbiosGuid },
   [KernelQuirkDisableIoMapper]         = { "com.apple.iokit.IOPCIFamily",                   PatchAppleIoMapperSupport },
