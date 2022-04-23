@@ -60,7 +60,12 @@ CheckConfig (
   return ErrorCount;
 }
 
-int ENTRY_POINT(int argc, const char *argv[]) {
+int
+ENTRY_POINT (
+  int   argc,
+  char  *argv[]
+  )
+{
   UINT8              *ConfigFileBuffer;
   UINT32             ConfigFileSize;
   CONST CHAR8        *ConfigFileName;
@@ -83,7 +88,7 @@ int ENTRY_POINT(int argc, const char *argv[]) {
   //
   // Print usage.
   //
-  if (argc != 2 || (argc > 1 && AsciiStrCmp (argv[1], "--version") == 0)) {
+  if (argc != 2) {
     DEBUG ((DEBUG_ERROR, "Usage: %a <path/to/config.plist>\n\n", argv[0]));
     return -1;
   }
@@ -147,7 +152,12 @@ int ENTRY_POINT(int argc, const char *argv[]) {
   return 0;
 }
 
-INT32 LLVMFuzzerTestOneInput(CONST UINT8 *Data, UINTN Size) {
+int
+LLVMFuzzerTestOneInput (
+  const uint8_t  *Data,
+  size_t         Size
+  )
+{
   VOID              *NewData;
   OC_GLOBAL_CONFIG  Config;
 
