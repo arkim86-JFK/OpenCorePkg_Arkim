@@ -1,7 +1,7 @@
 \documentclass[]{article}
 %DIF LATEXDIFF DIFFERENCE FILE
 %DIF DEL PreviousConfiguration.tex   Thu Jul  7 13:40:40 2022
-%DIF ADD ../Configuration.tex        Sun Jul 10 07:07:33 2022
+%DIF ADD ../Configuration.tex        Wed Jul 20 19:52:29 2022
 
 \usepackage{lmodern}
 \usepackage{amssymb,amsmath}
@@ -907,10 +907,10 @@ ACPI changes apply globally (to every operating system) with the following effec
 
 \begin{itemize}
 \tightlist
-\item \texttt{Patch} is processed.
-\item \texttt{Delete} is processed.
-\item \texttt{Add} is processed.
-\item \texttt{Quirks} are processed.
+\item \texttt{\DIFdelbegin \DIFdel{Patch}\DIFdelend \DIFaddbegin \DIFadd{Delete}\DIFaddend } is processed.
+\item \texttt{\DIFdelbegin \DIFdel{Delete}\DIFdelend \DIFaddbegin \DIFadd{Quirks}\DIFaddend } \DIFdelbegin \DIFdel{is }\DIFdelend \DIFaddbegin \DIFadd{are }\DIFaddend processed.
+\item \texttt{\DIFdelbegin \DIFdel{Add}\DIFdelend \DIFaddbegin \DIFadd{Patch}\DIFaddend } is processed.
+\item \texttt{\DIFdelbegin \DIFdel{Quirks}\DIFdelend \DIFaddbegin \DIFadd{Add}\DIFaddend } \DIFdelbegin \DIFdel{are }\DIFdelend \DIFaddbegin \DIFadd{is }\DIFaddend processed.
 \end{itemize}
 
 Applying the changes globally resolves the problems of incorrect operating system
@@ -1314,7 +1314,14 @@ of \href{https://github.com/acidanthera/AptioFixPkg}{\text{AptioMemoryFix.efi}},
 which is no longer maintained. Refer to the \hyperref[troubleshootingtricks]{Tips and Tricks}
 section for instructions on migration.
 
-If this is used for the first time on customised firmware, the following requirements
+\DIFaddbegin \DIFadd{Booter changes apply with the following effective order:
+}\begin{itemize}
+\tightlist
+\item \texttt{\DIFadd{Quirks}} \DIFadd{are processed.
+}\item \texttt{\DIFadd{Patch}} \DIFadd{is processed.
+}\end{itemize}
+
+\DIFaddend If this is used for the first time on customised firmware, the following requirements
 should be met before starting:
 
 \begin{itemize}
@@ -2008,7 +2015,18 @@ Apple Kernel (\href{https://opensource.apple.com/source/xnu}{XNU}). The modifica
 currently provide driver (kext) injection, kernel and driver patching, and driver
 blocking.
 
-\subsection{Properties}\label{kernelprops}
+\DIFaddbegin \DIFadd{Kernel and kext changes apply with the following effective order:
+}
+
+\begin{itemize}
+\tightlist
+\item \texttt{\DIFadd{Block}} \DIFadd{is processed.
+}\item \texttt{\DIFadd{Emulate}} \DIFadd{and }\texttt{\DIFadd{Quirks}} \DIFadd{are processed.
+}\item \texttt{\DIFadd{Patch}} \DIFadd{is processed.
+}\item \texttt{\DIFadd{Add}} \DIFadd{and }\texttt{\DIFadd{Force}} \DIFadd{are processed.
+}\end{itemize}
+
+\DIFaddend \subsection{Properties}\label{kernelprops}
 
 \begin{enumerate}
 \item
@@ -2649,11 +2667,21 @@ blocking.
   should be used for XNU to print logs to the serial port.
 
   \emph{Note 2}: In addition to this patch, kext \texttt{Apple16X50PCI0} should be prevented from attaching
-  to have \texttt{kprintf} method working properly. This can be achieved by setting (i.e. \texttt{Delete}, then \texttt{Add})
-  the \texttt{class-code} property of the PCI serial port device to \texttt{FFFFFFFF} in \texttt{DeviceProperties} section.
-  As an alternative solution, a codeless kext \texttt{PCIeSerialDisable.kext} shown in the spoiler \texttt{PCIeSerialDisable.kext/Contents/Info.plist} at
-  \href{https://github.com/acidanthera/bugtracker/issues/1954}{acidanthera/bugtracker\#1954}, may also be used.
-  In addition, for certain Thunderbolt cards the IOKit personality \texttt{IOPCITunnelCompatible} also needs to be set to \texttt{true},
+  to have \texttt{kprintf} method working properly. This can be achieved by \DIFdelbegin \DIFdel{setting (i.
+  e. }\texttt{\DIFdel{Delete}}%DIFAUXCMD
+\DIFdel{, then }\texttt{\DIFdel{Add}}%DIFAUXCMD
+\DIFdel{)
+  the }\texttt{\DIFdel{class-code}} %DIFAUXCMD
+\DIFdel{property of the PCI serial port device to }\texttt{\DIFdel{FFFFFFFF}} %DIFAUXCMD
+\DIFdel{in }\texttt{\DIFdel{DeviceProperties}} %DIFAUXCMD
+\DIFdel{section.
+  As an alternative solution, a codeless kext }\texttt{\DIFdel{PCIeSerialDisable.kext}} %DIFAUXCMD
+\DIFdel{shown in the spoiler }\texttt{\DIFdel{PCIeSerialDisable.kext/Contents/Info.plist}} %DIFAUXCMD
+\DIFdel{at
+  }\href{https://github.com/acidanthera/bugtracker/issues/1954}{\DIFdel{acidanthera/bugtracker\#1954}}%DIFAUXCMD
+\DIFdel{, may also be used.
+  }\DIFdelend \DIFaddbegin \DIFadd{using }\href{https://github.com/joevt/PCIeSerialDisable}{\DIFadd{PCIeSerialDisable}}\DIFadd{.
+  }\DIFaddend In addition, for certain Thunderbolt cards the IOKit personality \texttt{IOPCITunnelCompatible} also needs to be set to \texttt{true},
   which can be done by the \texttt{PCIeSerialThunderboltEnable.kext} attached at \href{https://github.com/acidanthera/bugtracker/issues/2003#issuecomment-1116761087}{acidanthera/bugtracker\#2003}.
 
 
@@ -6964,8 +6992,7 @@ for known issues.
 
 Most UEFI audio configuration is handled via the \hyperref[uefiaudioprops]{\texttt{UEFI Audio Properties}}
 section, but \DIFdelbegin \DIFdel{if required the following additonal configuration options (which are needed to produce sound
-on most Apple hardware, and possibly some others)
-  may be specified in }%DIFDELCMD < \texttt{%%%
+onmost Apple hardware, and possibly some others)may be specified in }%DIFDELCMD < \texttt{%%%
 \DIFdel{UEFI/Drivers/Arguments}%DIFDELCMD < \MBLOCKRIGHTBRACE%%%
 \DIFdel{:
 }\DIFdelend \DIFaddbegin \DIFadd{in addition some of the following configuration options may be required in order
@@ -6976,7 +7003,14 @@ the driver within the }\texttt{\DIFadd{UEFI/Drivers}} \DIFadd{section:
 
 \begin{itemize}
   \tightlist
-	\item \DIFaddbegin \texttt{\DIFadd{-}{}\DIFadd{-force-device}} \DIFadd{- String value, no default. }\medskip
+	\item \DIFaddbegin \texttt{\DIFadd{-}{}\DIFadd{-codec-setup-delay}} \DIFadd{- Integer value, default }\texttt{\DIFadd{0}}\DIFadd{. }\medskip
+
+  \DIFadd{Amount of time in milliseconds to wait for all widgets to come fully on, applied per codec
+  during driver connection phase. In most systems this should not be needed and a faster boot
+  will be achieved by using }\texttt{\DIFadd{Audio}} \DIFadd{section }\texttt{\DIFadd{SetupDelay}} \DIFadd{if any audio setup delay
+  is required. Where required, values of up to one second may be needed. }\medskip
+
+	\item \texttt{\DIFadd{-}{}\DIFadd{-force-device}} \DIFadd{- String value, no default. }\medskip
 
   \DIFadd{When this option is present and has a value (e.g. }\texttt{\DIFadd{-}{}\DIFadd{-force-device=PciRoot(0x0)/Pci(0x1f,0x3)}}\DIFadd{), it
   forces AudioDxe to connect to the specified PCI device, even if the device does not report itself as
@@ -7057,18 +7091,18 @@ the driver within the }\texttt{\DIFadd{UEFI/Drivers}} \DIFadd{section:
   \textbf{Type}: \texttt{plist\ dict}\\
   \textbf{Failsafe}: None\\
   \textbf{Description}: Provide APFS support as configured in the
-  \hyperref[uefiapfsprops]{APFS Properties} \DIFaddbegin \DIFadd{section below.
-}
+  \hyperref[uefiapfsprops]{APFS Properties} section below.
 
 \item
-  \texttt{\DIFadd{AppleInput}}\\
+  \DIFaddbegin \texttt{\DIFadd{AppleInput}}\\
   \textbf{\DIFadd{Type}}\DIFadd{: }\texttt{\DIFadd{plist\ dict}}\\
   \textbf{\DIFadd{Failsafe}}\DIFadd{: None}\\
   \textbf{\DIFadd{Description}}\DIFadd{: Configure the re-implementation of the Apple Event protocol
-  described in the }\hyperref[uefiappleinputprops]{AppleInput Properties} \DIFaddend section below.
+  described in the }\hyperref[uefiappleinputprops]{AppleInput Properties} \DIFadd{section below.
+}
 
 \item
-  \texttt{Audio}\\
+  \DIFaddend \texttt{Audio}\\
   \textbf{Type}: \texttt{plist\ dict}\\
   \textbf{Failsafe}: None\\
   \textbf{Description}: Configure audio backend support described
@@ -7706,13 +7740,13 @@ the driver within the }\texttt{\DIFadd{UEFI/Drivers}} \DIFadd{section:
   Datasheet (or any other ICH datasheet) for more details about this register.
 
   \emph{Note}: This option is independent from \texttt{AudioSupport}. If AppleALC is used
-  it is preferred to use AppleALC \texttt{alctsel} property instead.
+  it is preferred to use AppleALC \texttt{\DIFdelbegin \DIFdel{alctsel}\DIFdelend \DIFaddbegin \DIFadd{alctcsel}\DIFaddend } property instead.
 
 \item
   \texttt{SetupDelay}\\
   \textbf{Type}: \texttt{plist\ integer}\\
   \textbf{Failsafe}: \texttt{0}\\
-  \textbf{Description}: Audio codec reconfiguration delay in microseconds.
+  \textbf{Description}: Audio codec reconfiguration delay in \DIFdelbegin \DIFdel{microseconds}\DIFdelend \DIFaddbegin \DIFadd{milliseconds}\DIFaddend .
 
   Some codecs require a vendor-specific delay after the reconfiguration
   (e.g. volume setting). This option makes it configurable. A typical

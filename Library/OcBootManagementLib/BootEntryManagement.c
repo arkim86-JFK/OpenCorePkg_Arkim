@@ -690,6 +690,11 @@ InternalAddBootEntryFromCustomEntry (
                                           )
                                         );
     if (FilePath == NULL) {
+      DEBUG ((
+        DEBUG_WARN,
+        "OCB: Invalid device path, not adding entry %a\n",
+        CustomEntry->Name
+        ));
       FreeBootEntry (BootEntry);
       return EFI_UNSUPPORTED;
     }

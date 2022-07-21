@@ -68,6 +68,11 @@
 #define KC_MOSCOW_SEGMENT         "__MOSCOW101"
 
 //
+// Maximum allowed size of kext bundle version (CFBundleVersion) string.
+//
+#define MAX_INFO_BUNDLE_VERSION_KEY_SIZE  32
+
+//
 // Kernel cache types.
 //
 typedef enum KERNEL_CACHE_TYPE_ {
@@ -882,7 +887,7 @@ PrelinkedInjectKext (
   IN     CONST CHAR8        *ExecutablePath OPTIONAL,
   IN OUT CONST UINT8        *Executable OPTIONAL,
   IN     UINT32             ExecutableSize OPTIONAL,
-  OUT    CONST CHAR8        **BundleVersion OPTIONAL
+  OUT    CHAR8              BundleVersion[MAX_INFO_BUNDLE_VERSION_KEY_SIZE] OPTIONAL
   );
 
 /**
@@ -1101,6 +1106,40 @@ PatcherGetSymbolAddress (
   );
 
 /**
+  Get local symbol value.
+
+  @param[in,out] Context         Patcher context.
+  @param[in]     Name            Symbol name.
+  @param[in,out] Value           Returned original symbol value.
+
+  @return  EFI_SUCCESS on success.
+**/
+EFI_STATUS
+PatcherGetSymbolValue (
+  IN OUT PATCHER_CONTEXT  *Context,
+  IN     CONST CHAR8      *Name,
+  IN OUT UINT64           *Value
+  );
+
+/**
+  Get local symbol address and symbol value.
+
+  @param[in,out] Context         Patcher context.
+  @param[in]     Name            Symbol name.
+  @param[in,out] Address         Returned symbol address in file.
+  @param[in,out] Value           Returned original symbol value.
+
+  @return  EFI_SUCCESS on success.
+**/
+EFI_STATUS
+PatcherGetSymbolAddressValue (
+  IN OUT PATCHER_CONTEXT  *Context,
+  IN     CONST CHAR8      *Name,
+  IN OUT UINT8            **Address,
+  IN OUT UINT64           *Value
+  );
+
+/**
   Apply generic patch.
 
   @param[in,out] Context         Patcher context.
@@ -1270,7 +1309,7 @@ CachelessContextAddKext (
   IN     UINT32             InfoPlistSize,
   IN     CONST UINT8        *Executable OPTIONAL,
   IN     UINT32             ExecutableSize OPTIONAL,
-  OUT    CONST CHAR8        **BundleVersion OPTIONAL
+  OUT    CHAR8              BundleVersion[MAX_INFO_BUNDLE_VERSION_KEY_SIZE] OPTIONAL
   );
 
 /**
@@ -1501,7 +1540,7 @@ MkextInjectKext (
   IN     UINT32         InfoPlistSize,
   IN     UINT8          *Executable OPTIONAL,
   IN     UINT32         ExecutableSize OPTIONAL,
-  OUT    CONST CHAR8    **BundleVersion OPTIONAL
+  OUT    CHAR8          BundleVersion[MAX_INFO_BUNDLE_VERSION_KEY_SIZE] OPTIONAL
   );
 
 /**

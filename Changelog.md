@@ -5,6 +5,12 @@ OpenCore Changelog
 - Added support for macOS 13 DP3 Kernel Collection
 - Added `--force-device` option to AudioDxe, allowing UEFI audio on HDA contollers which misreport themselves as non-HDA audio devices
 - Provided optional unsafe fast file logging (suitable only for firmware with a fully compliant FAT32 driver)
+- Fixed incorrect OSBundleLibraries_x86_64 handling during cacheless injection
+- Changed RsaTool not to link against system ssl on macOS
+- Fixed crash during cacheless injection when kext blocking is enabled
+- Removed default codec connection delay from AudioDxe
+- Added optional `--codec-setup-delay` argument to AudioDxe
+- Changed units of `Audio` -> `SetupDelay` from microseconds to milliseconds (divide previous value by 1000 if using this setting)
 
 #### v0.8.2
 - Fixed `AppleCpuPmCfgLock` on macOS 13
