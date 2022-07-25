@@ -2784,7 +2784,7 @@ Kernel and kext changes apply with the following effective order:
   \texttt{ProvideCurrentCpuInfo}\\
   \textbf{Type}: \texttt{plist\ boolean}\\
   \textbf{Failsafe}: \texttt{false}\\
-  \textbf{Requirement}: 10.8 (10.14)\\
+  \textbf{Requirement}: 10.4 (10.14)\\
   \textbf{Description}: Provides current CPU info to the kernel.
 
   This quirk works differently depending on the CPU:
@@ -2797,7 +2797,10 @@ Kernel and kext changes apply with the following effective order:
     values solving kernel panic with \texttt{-cpu host}.
   \item For Intel CPUs it adds support for asymmetrical SMP systems
     (e.g. Intel Alder Lake) by patching core count to thread count along
-    with the supplemental required changes (10.14+).
+    with the supplemental required changes (10.14+). Cache size and cache
+    line size are also provided when using 10.4 as Intel Penryn and newer
+    may only have cache information in CPUID leaf 0x4 which is unsupported
+    by 10.4.
   \end{itemize}
 
 \item
@@ -6882,9 +6885,24 @@ SIP will be fully configured, so setting the variable using this boot option
 \texttt{csrutil} command in macOS Recovery.
 
 \texttt{csr-active-config}  will be toggled between \texttt{0} for enabled, and a user-specified or
-default value for disabled. The default value is \texttt{0x27F} (see below).
-Any other required value can be specified as a single number in the \texttt{Arguments} for this driver.
-This can be specified as hexadecimal, beginning with \texttt{0x}, or as decimal.
+default value for disabled.
+
+Options for the driver should be specified as plain text values separated by whitespace in the
+\texttt{Arguments} section of \texttt{Driver} entry. Available options are:
+
+\begin{itemize}
+\tightlist
+  \item \texttt{-{}-show-csr} - Boolean flag, enabled if present. \medskip
+
+  If enabled, show the current hexadecimal value of \texttt{csr-active-config} in the boot entry name.
+  This option will not work in OpenCanopy when used in combination with \texttt{OC\_ATTR\_USE\_GENERIC\_LABEL\_IMAGE}
+  in \texttt{PickerAttributes}. \medskip
+
+  \item Numerical value - Default value \texttt{0x27F}. \medskip
+
+  Specify the \texttt{csr-active-config} value to use to disabled SIP. This can be specified as
+  hexadecimal, beginning with \texttt{0x}, or as decimal. For more info see Note 2 below. \medskip
+\end{itemize}
 
 \emph{Note 1}: It is recommended not to run macOS with
 SIP disabled. Use of this boot option may make it easier to quickly disable SIP
