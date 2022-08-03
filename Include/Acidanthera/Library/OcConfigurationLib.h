@@ -480,7 +480,6 @@ OC_DECLARE (OC_NVRAM_LEGACY_MAP)
   _(OC_NVRAM_ADD_MAP           , Add               ,     , OC_CONSTR2 (OC_NVRAM_ADD_MAP, _, __)        , OC_DESTR (OC_NVRAM_ADD_MAP)) \
   _(OC_NVRAM_DELETE_MAP        , Delete            ,     , OC_CONSTR2 (OC_NVRAM_DELETE_MAP, _, __)     , OC_DESTR (OC_NVRAM_DELETE_MAP)) \
   _(OC_NVRAM_LEGACY_MAP        , Legacy            ,     , OC_CONSTR2 (OC_NVRAM_LEGACY_MAP, _, __)     , OC_DESTR (OC_NVRAM_LEGACY_MAP)) \
-  _(BOOLEAN                    , LegacyEnable      ,     , FALSE                                       , () ) \
   _(BOOLEAN                    , LegacyOverwrite   ,     , FALSE                                       , () ) \
   _(BOOLEAN                    , WriteFlash        ,     , FALSE                                       , () )
 OC_DECLARE (OC_NVRAM_CONFIG)
@@ -610,7 +609,8 @@ OC_DECLARE (OC_PLATFORM_CONFIG)
 #define OC_UEFI_DRIVER_ENTRY_FIELDS(_, __) \
   _(OC_STRING                   , Arguments          ,     , OC_STRING_CONSTR ("", _, __)                    , OC_DESTR (OC_STRING) ) \
   _(OC_STRING                   , Comment            ,     , OC_STRING_CONSTR ("", _, __)                    , OC_DESTR (OC_STRING) ) \
-  _(BOOLEAN                     , Enabled            ,     , FALSE                                           , ())                    \
+  _(BOOLEAN                     , Enabled            ,     , FALSE                                           , ()) \
+  _(BOOLEAN                     , LoadEarly          ,     , FALSE                                           , ()) \
   _(OC_STRING                   , Path               ,     , OC_STRING_CONSTR ("", _, __)                    , OC_DESTR (OC_STRING) )
 OC_DECLARE (OC_UEFI_DRIVER_ENTRY)
 

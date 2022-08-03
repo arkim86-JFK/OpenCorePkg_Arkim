@@ -1,5 +1,8 @@
 OpenCore Changelog
 ==================
+#### v0.8.4
+- Added checks for `Driver` -> `LoadEarly` in ocvalidate
+
 #### v0.8.3
 - Added ext4 file system driver
 - Added support for macOS 13 DP3 Kernel Collection
@@ -16,6 +19,10 @@ OpenCore Changelog
 - Added `--show-csr` option for `Toggle SIP` boot menu entry
 - Added macOS 10.4 and 10.5 support to `AllowRelocationBlock` Booter quirk
 - Added CPU cache info injection for macOS 10.4 to `ProvideCurrentCpuInfo` quirk
+- Added emulated NVRAM driver for use separately from OpenDuet
+- Added support for NVRAM reset and set default boot entry when using emulated NVRAM
+- Upgraded emulated NVRAM logout script to allow unsupervised installation of recent macOS OTA updates
+- Added `Driver` -> `LoadEarly` for drivers which need to be loaded before NVRAM init
 
 #### v0.8.2
 - Fixed `AppleCpuPmCfgLock` on macOS 13
