@@ -11,6 +11,7 @@
 #include <Uefi.h>
 #include <Library/OcConfigurationLib.h>
 #include <Library/OcStorageLib.h>
+#include <Protocol/OcFirmwareRuntime.h>
 
 #define OPEN_CORE_NVRAM_ROOT_PATH  L"NVRAM"
 
@@ -165,6 +166,33 @@ OcGetBootOptionData (
 EFI_STATUS
 OcResetNvram (
   IN     BOOLEAN  PreserveBoot
+  );
+
+/**
+  When compatible protocol is found, disable OpenRuntime NVRAM protection then
+  return relevant protocol for subsequent restore, else return NULL.
+  Always call OcRestoreNvramProtection to restore normal OpenRuntime operation
+  before booting anything, after disabling with this call.
+
+  @retval     Compatible protocol if found and firmware runtime was disabled,
+              NULL otherwise.
+**/
+OC_FIRMWARE_RUNTIME_PROTOCOL *
+OcDisableNvramProtection (
+  VOID
+  );
+
+/**
+  Restore OpenRuntime NVRAM protection if it was disabled by a previous call to
+  OcDisableNvramProtection.
+  Noop when FwRuntime argument is NULL.
+
+  @param[in]     FwRuntime          Firmware runtime protocol or NULL, from previous call to
+                                    OcDisableNvramProtection.
+**/
+VOID
+OcRestoreNvramProtection (
+  IN OC_FIRMWARE_RUNTIME_PROTOCOL  *FwRuntime
   );
 
 /**
