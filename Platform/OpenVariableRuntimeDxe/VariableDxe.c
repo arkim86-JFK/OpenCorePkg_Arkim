@@ -45,6 +45,18 @@ EDKII_VAR_CHECK_PROTOCOL        mVarCheck = {
   VarCheckVariablePropertyGet
 };
 
+STATIC EFI_GUID  mAcpiGlobalVariableGuid = {
+  0xAF9FFD67, 0xEC10, 0x488A, { 0x9D, 0xFC, 0x6C, 0xBF, 0x5E, 0xE2, 0x2C, 0x2E }
+};
+
+STATIC
+VOID *
+  mAcpiGlobalVariable = NULL;
+
+STATIC
+UINT32
+  mAcpiGlobalVariableAttributes;
+
 /**
   Some Secure Boot Policy Variable may update following other variable changes(SecureBoot follows PK change, etc).
   Record their initial State when variable write service is ready.
@@ -376,7 +388,6 @@ VariableWriteServiceInitializeDxe (
   )
 {
   EFI_STATUS  Status;
-  VOID        *Interface;
 
   Status = VariableWriteServiceInitialize ();
   if (EFI_ERROR (Status)) {
@@ -390,17 +401,14 @@ VariableWriteServiceInitializeDxe (
   RecordSecureBootPolicyVarData ();
 
   //
-  // Install (but don't reinstall) the Variable Write Architectural protocol.
+  // Install the Variable Write Architectural protocol.
   //
-  Status = gBS->LocateProtocol (&gEfiVariableWriteArchProtocolGuid, NULL, &Interface);
-  if (EFI_ERROR (Status)) {
-    Status = gBS->InstallProtocolInterface (
-                    &mHandle,
-                    &gEfiVariableWriteArchProtocolGuid,
-                    EFI_NATIVE_INTERFACE,
-                    NULL
-                    );
-  }
+  Status = gBS->InstallProtocolInterface (
+                  &mHandle,
+                  &gEfiVariableWriteArchProtocolGuid,
+                  EFI_NATIVE_INTERFACE,
+                  NULL
+                  );
 
   ASSERT_EFI_ERROR (Status);
 }
@@ -556,6 +564,70 @@ MapCreateEventEx (
                 );
 }
 
+STATIC
+VOID
+SaveAcpiGlobalVariable (
+  IN EFI_SYSTEM_TABLE  *SystemTable
+  )
+{
+  EFI_STATUS  Status;
+  UINTN       DataSize;
+  VOID        *Interface;
+
+  Status = gBS->LocateProtocol (&gEfiVariableArchProtocolGuid, NULL, &Interface);
+
+  if (!EFI_ERROR (Status)) {
+    //
+    // If present, we must transfer this into emulated NVRAM in order for wake from S3 sleep to work.
+    //
+    DataSize = sizeof (mAcpiGlobalVariable);
+    Status   = SystemTable->RuntimeServices->GetVariable (
+                                               L"AcpiGlobalVariable",
+                                               &mAcpiGlobalVariableGuid,
+                                               &mAcpiGlobalVariableAttributes,
+                                               &DataSize,
+                                               &mAcpiGlobalVariable
+                                               );
+
+    if (EFI_ERROR (Status)) {
+      mAcpiGlobalVariable = NULL;
+    }
+
+    DEBUG ((
+      EFI_ERROR (Status) && Status != EFI_NOT_FOUND ? DEBUG_WARN : DEBUG_INFO,
+      "Existing AcpiGlobalVariable %p 0x%x - %r\n",
+      mAcpiGlobalVariable,
+      mAcpiGlobalVariableAttributes,
+      Status
+      ));
+  }
+}
+
+STATIC
+VOID
+RestoreAcpiGlobalVariable (
+  IN EFI_SYSTEM_TABLE  *SystemTable
+  )
+{
+  EFI_STATUS  Status;
+
+  if (mAcpiGlobalVariable != NULL) {
+    Status = SystemTable->RuntimeServices->SetVariable (
+                                             L"AcpiGlobalVariable",
+                                             &mAcpiGlobalVariableGuid,
+                                             mAcpiGlobalVariableAttributes,
+                                             sizeof (mAcpiGlobalVariable),
+                                             &mAcpiGlobalVariable
+                                             );
+
+    DEBUG ((
+      EFI_ERROR (Status) ? DEBUG_WARN : DEBUG_INFO,
+      "Transfer AcpiGlobalVariable to emulated NVRAM - %r\n",
+      Status
+      ));
+  }
+}
+
 /**
   Variable Driver main entry point. The Variable driver places the 4 EFI
   runtime services in the EFI System Table and installs arch protocols
@@ -576,10 +648,13 @@ VariableServiceInitialize (
   )
 {
   EFI_STATUS           Status;
-  EFI_EVENT            ReadyToBootEvent;
+  UINTN                OffsetQVI;
+  UINTN                HeaderQVI;
   EFI_EVENT            EndOfDxeEvent;
+  EFI_EVENT            ReadyToBootEvent;
   EFI_CREATE_EVENT_EX  OriginalCreateEventEx;
-  VOID                 *Interface;
+
+  SaveAcpiGlobalVariable (SystemTable);
 
   //
   // Probably worth noting that attempting to remove any pre-existing protocols here
@@ -609,25 +684,35 @@ VariableServiceInitialize (
   SystemTable->RuntimeServices->GetNextVariableName = VariableServiceGetNextVariableName;
   SystemTable->RuntimeServices->SetVariable         = VariableServiceSetVariable;
   //
-  // Avoid setting UEFI 2.0 interface members, since this must run on older and Apple firmware.
-  // TODO: Possibly add this back on version check, but nothing we are aware of uses this.
+  // Avoid setting UEFI 2.x interface member on EFI 1.x.
   //
-  // SystemTable->RuntimeServices->QueryVariableInfo   = VariableServiceQueryVariableInfo;
+  // First test all systable elements as some may have been spoofed and pass a limited element check
+  // Then check that QueryVariableInfo is specifically available before setting the interface member
+  //
+  if (  ((SystemTable->Hdr.Revision >> 16U) > 1)
+     && ((SystemTable->BootServices->Hdr.Revision >> 16U) > 1)
+     && ((SystemTable->RuntimeServices->Hdr.Revision >> 16U) > 1))
+  {
+    OffsetQVI = OFFSET_OF (EFI_RUNTIME_SERVICES, QueryVariableInfo);
+    HeaderQVI = OffsetQVI + sizeof (SystemTable->RuntimeServices->QueryVariableInfo);
+    if (SystemTable->RuntimeServices->Hdr.HeaderSize >= HeaderQVI) {
+      SystemTable->RuntimeServices->QueryVariableInfo = VariableServiceQueryVariableInfo;
+    }
+  }
 
   //
-  // Now install (but don't reinstall) the Variable Runtime Architectural protocol on a new handle.
-  // If we reinstall this on newer Apple firmware then the three runtime services functions
-  // above get preserved, but wrapped by additional Apple security.
+  // Now install the Variable Runtime Architectural protocol on a new handle.
+  // When we reinstall this on newer Apple firmware then the three runtime services functions
+  // above get preserved, but wrapped by additional Apple security, which is believed to have
+  // desirable functionality, e.g. possibility of writing variables to different stores,
+  // allowing them to have intended effect.
   //
-  Status = gBS->LocateProtocol (&gEfiVariableArchProtocolGuid, NULL, &Interface);
-  if (EFI_ERROR (Status)) {
-    Status = gBS->InstallProtocolInterface (
-                    &mHandle,
-                    &gEfiVariableArchProtocolGuid,
-                    EFI_NATIVE_INTERFACE,
-                    NULL
-                    );
-  }
+  Status = gBS->InstallProtocolInterface (
+                  &mHandle,
+                  &gEfiVariableArchProtocolGuid,
+                  EFI_NATIVE_INTERFACE,
+                  NULL
+                  );
 
   ASSERT_EFI_ERROR (Status);
 
@@ -647,6 +732,8 @@ VariableServiceInitialize (
     // Emulated non-volatile variable mode does not depend on FVB and FTW.
     //
     VariableWriteServiceInitializeDxe ();
+
+    RestoreAcpiGlobalVariable (SystemTable);
   }
 
   OriginalCreateEventEx = gBS->CreateEventEx;

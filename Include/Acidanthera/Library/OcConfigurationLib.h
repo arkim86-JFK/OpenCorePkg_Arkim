@@ -344,6 +344,7 @@ OC_DECLARE (OC_MISC_BLESS_ARRAY)
   _(UINT32                      , TakeoffDelay                ,     , 0                                   , ())                   \
   _(UINT32                      , Timeout                     ,     , 0                                   , ())                   \
   _(BOOLEAN                     , PickerAudioAssist           ,     , FALSE                               , ())                   \
+  _(BOOLEAN                     , HibernateSkipsPicker        ,     , FALSE                               , ())                   \
   _(BOOLEAN                     , HideAuxiliary               ,     , FALSE                               , ())                   \
   _(BOOLEAN                     , PollAppleHotKeys            ,     , FALSE                               , ())                   \
   _(BOOLEAN                     , ShowPicker                  ,     , FALSE                               , ())

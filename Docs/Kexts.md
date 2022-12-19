@@ -39,7 +39,7 @@ Kexts
 | [VoodooInput.kext](https://github.com/acidanthera/VoodooInput) | 15.0.0 (10.11) | — | — |
 | [VoodooSMBus.kext](https://github.com/leo-labs/VoodooSMBus) | 18.0.0 (10.14) | — | — |
 | [VoodooRMI.kext](https://github.com/VoodooSMBus/VoodooRMI) | 15.0.0 (10.11) | — | — |
-| [AlpsT4USB.kext](https://github.com/blankmac/AlpsT4USB) | — | — | — |
+| [AlpsHID.kext](https://github.com/blankmac/AlpsHID) | — | — | — |
 
 | Video and audio | MinKernel (Min macOS) | MaxKernel (Max macOS) | Note |
 |-----------------|-----------------------|-----------------------|------|
@@ -97,7 +97,7 @@ Kexts
 | [TOSMotionSensor.kext](https://github.com/jslegendre/TOSMotionSensor) | — | — | — |
 | [FeatureUnlock.kext](https://github.com/acidanthera/FeatureUnlock) | — | — | — |
 | [MacHyperVSupport.kext](https://github.com/acidanthera/MacHyperVSupport) | 8.0.0 (10.4) | — | — |
-| [CryptexFixup.kext](https://github.com/acidanthera/CryptexFixup) | 22.0.0 (13.0) | — | — |
+| [CryptexFixup.kext](https://github.com/acidanthera/CryptexFixup) | 20.0.0 (11) | — | — |
 
 More complete list with legacy kexts is hosted [here](https://docs.google.com/spreadsheets/d/15S-ocrkm_VTUJpKxNII-YUyQFd5VYdjbe0DHlZVCQyM). Full Lilu plugin list with legacy kexts is hosted [here](https://github.com/acidanthera/Lilu/blob/master/KnownPlugins.md). For developers only.   
 Acidanthera members are not affiliated with the authors of any kernel extensions but ones hosted at https://github.com/acidanthera. This list is provided for information purposes without warranty of any kind.  
