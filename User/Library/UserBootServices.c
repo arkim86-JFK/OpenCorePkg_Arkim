@@ -10,9 +10,11 @@
 
 EFI_BOOT_SERVICES  mBootServices = {
   .RaiseTPL                  = DummyRaiseTPL,
+  .RestoreTPL                = DummyRestoreTPL,
   .LocateProtocol            = DummyLocateProtocol,
   .AllocatePages             = DummyAllocatePages,
-  .InstallConfigurationTable = DummyInstallConfigurationTable
+  .InstallConfigurationTable = DummyInstallConfigurationTable,
+  .CalculateCrc32            = DummyCalculateCrc32
 };
 
 EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL  mConOut = {
@@ -47,9 +49,16 @@ DummyRaiseTPL (
   IN EFI_TPL  NewTpl
   )
 {
-  ASSERT (FALSE);
-
   return 0;
+}
+
+VOID
+EFIAPI
+DummyRestoreTPL (
+  IN EFI_TPL  NewTpl
+  )
+{
+  return;
 }
 
 EFI_STATUS
@@ -213,6 +222,22 @@ DummyInstallConfigurationTable (
     gST->NumberOfTableEntries++;
   }
 
+  return EFI_SUCCESS;
+}
+
+EFI_STATUS
+EFIAPI
+DummyCalculateCrc32 (
+  IN  VOID    *Data,
+  IN  UINTN   DataSize,
+  OUT UINT32  *CrcOut
+  )
+{
+  if ((Data == NULL) || (DataSize == 0) || (CrcOut == NULL)) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  *CrcOut = CalculateCrc32 (Data, DataSize);
   return EFI_SUCCESS;
 }
 

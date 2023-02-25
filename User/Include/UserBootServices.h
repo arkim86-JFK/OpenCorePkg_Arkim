@@ -24,6 +24,12 @@ DummyRaiseTPL (
   IN EFI_TPL  NewTpl
   );
 
+VOID
+EFIAPI
+DummyRestoreTPL (
+  IN EFI_TPL  NewTpl
+  );
+
 EFI_STATUS
 EFIAPI
 DummyLocateProtocol (
@@ -46,6 +52,14 @@ EFIAPI
 DummyInstallConfigurationTable (
   IN EFI_GUID  *Guid,
   IN VOID      *Table
+  );
+
+EFI_STATUS
+EFIAPI
+DummyCalculateCrc32 (
+  IN  VOID    *Data,
+  IN  UINTN   DataSize,
+  OUT UINT32  *CrcOut
   );
 
 EFI_STATUS
