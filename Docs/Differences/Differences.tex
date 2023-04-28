@@ -1,7 +1,7 @@
 \documentclass[]{article}
 %DIF LATEXDIFF DIFFERENCE FILE
-%DIF DEL PreviousConfiguration.tex   Thu Apr  6 01:56:05 2023
-%DIF ADD ../Configuration.tex        Thu Apr  6 01:56:05 2023
+%DIF DEL PreviousConfiguration.tex   Wed Apr  5 14:22:58 2023
+%DIF ADD ../Configuration.tex        Sat Apr 22 15:22:44 2023
 
 \usepackage{lmodern}
 \usepackage{amssymb,amsmath}
@@ -118,7 +118,7 @@
 %DIF HYPERREF PREAMBLE %DIF PREAMBLE
 \providecommand{\DIFadd}[1]{\texorpdfstring{\DIFaddtex{#1}}{#1}} %DIF PREAMBLE
 \providecommand{\DIFdel}[1]{\texorpdfstring{\DIFdeltex{#1}}{}} %DIF PREAMBLE
-%DIF LISTINGS PREAMBLE %DIF PREAMBLE
+%DIF COLORLISTINGS PREAMBLE %DIF PREAMBLE
 \RequirePackage{listings} %DIF PREAMBLE
 \RequirePackage{color} %DIF PREAMBLE
 \lstdefinelanguage{DIFcode}{ %DIF PREAMBLE
@@ -1600,7 +1600,10 @@ To view their current state, use the \texttt{pmset -g} command in Terminal.
   \href{https://web.archive.org/web/20200517125051/https://support.apple.com/en-us/HT201573}{archived article}
   to understand how to use single user mode with this quirk enabled.
 
-\item
+  \DIFaddbegin \emph{\DIFadd{Note}}\DIFadd{: When Apple Secure Boot is enabled single user mode is always disabled.
+}
+
+\DIFaddend \item
   \texttt{DisableVariableWrite}\\
   \textbf{Type}: \texttt{plist\ boolean}\\
   \textbf{Failsafe}: \texttt{false}\\
@@ -2029,10 +2032,15 @@ Kernel and kext changes apply with the following effective order:
 \begin{itemize}
 \tightlist
 \item \texttt{Block} is processed.
-\item \texttt{Emulate} and \texttt{Quirks} are processed.
+\item \DIFaddbegin \texttt{\DIFadd{Add}} \DIFadd{and }\texttt{\DIFadd{Force}} \DIFadd{are processed.
+}\item \DIFaddend \texttt{Emulate} and \texttt{Quirks} are processed.
 \item \texttt{Patch} is processed.
-\item \texttt{Add} and \texttt{Force} are processed.
-\end{itemize}
+\DIFdelbegin %DIFDELCMD < \item %%%
+\item %DIFAUXCMD
+\texttt{\DIFdel{Add}} %DIFAUXCMD
+\DIFdel{and }\texttt{\DIFdel{Force}} %DIFAUXCMD
+\DIFdel{are processed.
+}\DIFdelend \end{itemize}
 
 \subsection{Properties}\label{kernelprops}
 
@@ -2572,12 +2580,16 @@ Kernel and kext changes apply with the following effective order:
   \texttt{AppleCpuPmCfgLock}\\
   \textbf{Type}: \texttt{plist\ boolean}\\
   \textbf{Failsafe}: \texttt{false}\\
-  \textbf{Requirement}: 10.4-12\\
+  \textbf{Requirement}: 10.4\DIFdelbegin \DIFdel{-12}\DIFdelend \\
   \textbf{Description}: Disables \texttt{PKG\_CST\_CONFIG\_CONTROL} (\texttt{0xE2})
   MSR modification in AppleIntelCPUPowerManagement.kext, commonly causing early
   kernel panic, when it is locked from writing.
 
-  Some types of firmware lock the \texttt{PKG\_CST\_CONFIG\_CONTROL} MSR
+  \DIFaddbegin \emph{\DIFadd{Note}}\DIFadd{: AppleIntelCPUPowerManagement.kext is removed as of macOS 13.
+  However, a legacy version can be injected and thus get patched using this quirk.
+}
+
+  \DIFaddend Some types of firmware lock the \texttt{PKG\_CST\_CONFIG\_CONTROL} MSR
   register and the bundled \texttt{ControlMsrE2} tool can be used to check its
   state. Note that some types of firmware only have this register locked on some
   cores. As modern firmware provide a \texttt{CFG Lock} setting that allows
@@ -2712,11 +2724,10 @@ Kernel and kext changes apply with the following effective order:
   \emph{Note 2}: Misconfigured IOMMU in the firmware may result in broken devices
   such as ethernet or Wi-Fi adapters. For instance, an ethernet adapter may cycle in link-up
   link-down state infinitely and a Wi-Fi adapter may fail to discover networks.
-  Gigabyte is one of the most common OEMs with these issues\DIFaddbegin \DIFadd{.
-}
+  Gigabyte is one of the most common OEMs with these issues.
 
 \item
-  \texttt{\DIFadd{DisableIoMapperMapping}}\\
+  \DIFaddbegin \texttt{\DIFadd{DisableIoMapperMapping}}\\
   \textbf{\DIFadd{Type}}\DIFadd{: }\texttt{\DIFadd{plist\ boolean}}\\
   \textbf{\DIFadd{Failsafe}}\DIFadd{: }\texttt{\DIFadd{false}}\\
   \textbf{\DIFadd{Requirement}}\DIFadd{: 13.3 (not required for older)}\\
@@ -2725,14 +2736,15 @@ Kernel and kext changes apply with the following effective order:
 
   \emph{\DIFadd{Note 1}}\DIFadd{: This option resolves compatibility issues with Wi-Fi, Ethernet and
   Thunderbolt devices when AppleVTD is enabled on systems where the native DMAR table
-  contains one or more Reserved Memory Regions.
+  contains one or more Reserved Memory Regions and iGPU is enabled and more than
+  16 GB memory is installed.
 }
 
-  \emph{\DIFadd{Note 2}}\DIFadd{: This option is not needed on AMD systems or any Intel system
-  where the native DMAR table does not contain any Reserved Memory Regions}\DIFaddend .
+  \emph{\DIFadd{Note 2}}\DIFadd{: This option is not needed on AMD systems.
+}
 
 \item
-  \texttt{DisableLinkeditJettison}\\
+  \DIFaddend \texttt{DisableLinkeditJettison}\\
   \textbf{Type}: \texttt{plist\ boolean}\\
   \textbf{Failsafe}: \texttt{false}\\
   \textbf{Requirement}: 11\\
@@ -8173,7 +8185,7 @@ for additional options.
 
   Currently two renderers are supported: \texttt{Builtin} and
   \texttt{System}. \texttt{System} renderer uses firmware services
-  for text rendering. \texttt{Builtin} bypassing firmware services
+  for text rendering. \texttt{Builtin} \DIFdelbegin \DIFdel{bypassing }\DIFdelend \DIFaddbegin \DIFadd{bypasses }\DIFaddend firmware services
   and performs text rendering on its own. Different renderers support
   a different set of options. It is recommended to use \texttt{Builtin}
   renderer, as it supports HiDPI mode and uses full screen resolution.
@@ -8313,8 +8325,21 @@ for additional options.
   for GOP memory, even though the CPU supports it. Setting this can give a considerable
   speed-up for GOP operations, especially on systems which require \texttt{DirectGopRendering}.
 
-  \emph{Note}: This takes effect whether or not \texttt{DirectGopRendering} is set, and may
-  give some speed-up to GOP operations even when \texttt{DirectGopRendering} is \texttt{false}.
+  \emph{Note \DIFaddbegin \DIFadd{1}\DIFaddend }: This \DIFaddbegin \DIFadd{quirk }\DIFaddend takes effect whether or not \texttt{DirectGopRendering} is set, and
+  \DIFdelbegin \DIFdel{may
+  give some }\DIFdelend \DIFaddbegin \DIFadd{in some cases may give a noticeable }\DIFaddend speed-up to GOP operations even when \texttt{DirectGopRendering}
+  is \texttt{false}\DIFaddbegin \DIFadd{.
+}
+
+  \emph{\DIFadd{Note 2}}\DIFadd{: On most systems from circa 2013 onwards, write-combining
+  caching is already applied by the firmware to GOP memory, in which case }\texttt{\DIFadd{GopBurstMode}}
+  \DIFadd{is unnecessary. On such systems enabling the quirk should normally be harmless, producing an
+  }\texttt{\DIFadd{OCC:}} \DIFadd{debug log entry indicating that burst mode is already started.
+}
+
+  \emph{\DIFadd{Note 3}}\DIFadd{: Some caution should be taken when enabling this quirk, as it has been observed
+  to cause hangs on a few systems. Since additional guards have been added to try to prevent this,
+  please log a bugtracker issue if such a system is found}\DIFaddend .
 
 \item
   \texttt{GopPassThrough}\\
