@@ -122,6 +122,7 @@
   OcMiscLib|OpenCorePkg/Library/OcMiscLib/OcMiscLib.inf
   OcMp3Lib|OpenCorePkg/Library/OcMp3Lib/OcMp3Lib.inf
   OcOSInfoLib|OpenCorePkg/Library/OcOSInfoLib/OcOSInfoLib.inf
+  OcPciIoLib|OpenCorePkg/Library/OcPciIoLib/OcPciIoLib.inf
   OcPngLib|OpenCorePkg/Library/OcPngLib/OcPngLib.inf
   OcRngLib|OpenCorePkg/Library/OcRngLib/OcRngLib.inf
   OcRtcLib|OpenCorePkg/Library/OcRtcLib/OcRtcLib.inf
@@ -201,6 +202,7 @@
   OpenCorePkg/Application/ChipTune/ChipTune.inf
   OpenCorePkg/Application/CleanNvram/CleanNvram.inf
   OpenCorePkg/Application/CsrUtil/CsrUtil.inf
+  OpenCorePkg/Application/FontTester/FontTester.inf
   OpenCorePkg/Application/GopPerf/GopPerf.inf
   OpenCorePkg/Application/GopStop/GopStop.inf
   OpenCorePkg/Application/KeyTester/KeyTester.inf
@@ -290,6 +292,7 @@
   OpenCorePkg/Library/OcTimerLib/OcTimerLib.inf
   OpenCorePkg/Library/OcUnicodeCollationEngLib/OcUnicodeCollationEngGenericLib.inf
   OpenCorePkg/Library/OcUnicodeCollationEngLib/OcUnicodeCollationEngLocalLib.inf
+  OpenCorePkg/Library/OcPciIoLib/OcPciIoLib.inf
   OpenCorePkg/Library/OcVirtualFsLib/OcVirtualFsLib.inf
   OpenCorePkg/Library/OcWaveLib/OcWaveLib.inf
   OpenCorePkg/Library/OcXmlLib/OcXmlLib.inf
