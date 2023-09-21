@@ -94,7 +94,7 @@
 
        \vspace{0.2in}
 
-       Reference Manual (0.9.3)
+       Reference Manual (0.9.5)
 
        \vspace{0.2in}
 
@@ -1684,7 +1684,7 @@ To view their current state, use the \texttt{pmset -g} command in Terminal.
   such as \texttt{DevirtualiseMmio}, \texttt{ProtectMemoryRegions}, or \texttt{RebuildAppleMemoryMap},
   and may also obstruct other quirks depending on the scope of such.
 
-  GRUB shim makes similar on-the-fly changes to various UEFI image services,
+  GRUB Shim makes similar on-the-fly changes to various UEFI image services,
   which are also protected against by this quirk.
 
   \emph{Note 1}: On VMware, the need for this quirk may be determined by the appearance of the
@@ -3125,6 +3125,8 @@ installed on the media, while alternate options represent recovery options for t
 \end{itemize} \medskip
 \end{itemize}
 
+\subsubsection{Boot Algorithm}\label{bootalgorithm}
+
 The algorithm to determine boot options behaves as follows:
 
 \begin{enumerate}
@@ -3145,13 +3147,15 @@ The algorithm to determine boot options behaves as follows:
   \item For disk device paths (not specifying a bootloader), execute ``bless'' (may return > 1 entry).
   \item For file device paths, check for presence on the file system directly.
   % Just kill all \EFI\APPLE\ paths.
-  \item Exclude entries if there is a \texttt{.contentVisibility} file near the bootloader or
-  inside the boot directory with \texttt{Disabled} contents (ASCII).
+  \item Exclude entries if there is a \texttt{.contentVisibility} file at a relevant location (see below)
+  with \texttt{Disabled} contents (ASCII) (and if the current \texttt{InstanceIentifier} matches an \texttt{Instance-List}
+  if present, see below).
   \item Mark device handle as \textit{used} in the list of partition handles if any.
   % Each partition handle will basically have a list of boot option entries for later quick lookup.
   \item Register the resulting entries as primary options and determine their types. \\
   The option will become auxiliary for some types (e.g. Apple HFS recovery)
-  or if its \texttt{.contentVisibility} file contains \texttt{Auxiliary}.
+  or if its \texttt{.contentVisibility} file contains \texttt{Auxiliary} (and if the current
+  \texttt{InstanceIentifier} matches an \texttt{Instance-List} if present, see below).
   \end{itemize}
 \item For each partition handle:
   \begin{itemize}
@@ -3165,14 +3169,51 @@ The algorithm to determine boot options behaves as follows:
   \item Lookup alternate entries by ``bless'' recovery option list retrieval and predefined paths.
   \item Register the resulting entries as alternate auxiliary options and determine their types if found.
   \end{itemize}
-\item Custom entries and tools, except such pre-constructed previously, are added as primary options without any checks with respect to \texttt{Auxiliary}.
+\item Custom entries and tools, except such pre-constructed previously, are added as primary options
+without any checks with respect to \texttt{Auxiliary}.
 \item System entries, such as \texttt{Reset NVRAM}, are added as primary auxiliary options.
 \end{enumerate}
+
+A \texttt{.contentVisibility} file may be placed next to the bootloader (such as \texttt{boot.efi}),
+or in the boot folder (for DMG folder based boot items). Example locations, as seen from within macOS, are:
+\begin{itemize}
+\tightlist
+\item \texttt{/System/Volumes/Preboot/\{GUID\}/System/Library/CoreServices/.contentVisibility}
+\item \texttt{/Volumes/\{ESP\}/EFI/BOOT/.contentVisibility}
+\end{itemize}
+In addition a \texttt{.contentVisibility} file may be placed in the instance-specific (for macOS) or absolute
+root folders related to a boot entry, for example:
+\begin{itemize}
+\tightlist
+\item \texttt{/System/Volumes/Preboot/\{GUID\}/.contentVisibility}
+\item \texttt{/System/Volumes/Preboot/.contentVisibility}
+\item \texttt{/Volumes/\{ESP\}/.contentVisibility} (\emph{not recommended})
+\end{itemize}
+These root folder locations are supported specifically for macOS, because non-Apple files next to the Apple bootloader
+are removed by macOS updates. It is supported but not recommended to place a \texttt{.contentVisibility} file in a
+non-macOS root location (such as the last location shown above), because it will hide all entries on the drive.
+
+The \texttt{.contentVisibility} file, when present, may optionally target only specific instances
+of OpenCore. Its contents are \texttt{[\{Instance-List\}:](Disabled|Auxiliary)}.
+If a colon (\texttt{:}) is present, the preceding \texttt{Instance-List} it is a comma separated
+list of \texttt{InstanceIdentifier} values (example: \texttt{OCA,OCB:Disabled}).
+When this list is present, the specified visibility is only applied if the
+\texttt{InstanceIdentifier} of the current instance of OpenCore is present in the list.
+When the list is not present, the specified visibility is applied for all instances of OpenCore.
+
+\emph{Note 1}: For any instance of OpenCore with no \texttt{InstanceIdentifier} value, the specified visibility
+from a \texttt{.contentVisibility} file with an \texttt{Instance-List} will never be applied.
+
+\emph{Note 2}: Visibilities with a visibility list will be treated as invalid, and so ignored, in earlier
+versions of OpenCore - which may be useful when comparing behaviour of older and newer versions.
+
+\emph{Note 3}: Avoid extraneous spaces in the \texttt{.contentVisibility} file: these will not be treated as
+whitespace, but as part of the adjacent token.
 
 The display order of the boot options in the OpenCore picker and the boot process
 are determined separately from the scanning algorithm.
 
-The display order as follows:
+The display order is as follows:
 
 \begin{itemize}
 \tightlist
@@ -3390,6 +3431,17 @@ the default boot entry choice will remain changed until the next manual reconfig
 
   To display all entries, the picker menu can be reloaded into ``Extended Mode'' by pressing the
   \texttt{Spacebar} key. Hiding auxiliary entries may increase boot performance on multi-disk systems.
+
+
+\item
+  \texttt{InstanceIdentifier}\\
+  \textbf{Type}: \texttt{plist\ string}\\
+  \textbf{Failsafe}: Empty\\
+  \textbf{Description}: An optional identifier for the current instance of OpenCore.
+
+  This should typically be a short alphanumeric string. The current use of this value is
+  to optionally target \texttt{.contentVisibility} files to specific instances of OpenCore,
+  as explained in the \hyperref[bootalgorithm]{Boot Algorithm} section.
 
 \item
   \texttt{LauncherOption}\\
@@ -4000,6 +4052,7 @@ nvram 4D1FDA02-38C7-4A6A-9CC6-4BCCA8B30102:boot-log |
   \item \texttt{OCRST} --- ResetSystem
   \item \texttt{OCUI} --- OpenCanopy
   \item \texttt{OC} --- OpenCore main, also OcMainLib
+  \item \texttt{OLB} --- OpenLegacyBoot
   \item \texttt{VMOPT} --- VerifyMemOpt
   \end{itemize}
 
@@ -6429,9 +6482,13 @@ even cause permanent firmware damage. Some of the known drivers are listed below
 & \hyperref[ueficanopy]{OpenCore plugin} implementing graphical interface. \\
 \href{https://github.com/acidanthera/OpenCorePkg}{\texttt{OpenRuntime}}\textbf{*}
 & \hyperref[uefiruntime]{OpenCore plugin} implementing \texttt{OC\_FIRMWARE\_RUNTIME} protocol. \\
+\href{https://github.com/acidanthera/OpenCorePkg}{\texttt{OpenLegacyBoot}}\textbf{*}
+& \hyperref[legacyboot]{OpenCore plugin} implementing \texttt{OC\_BOOT\_ENTRY\_PROTOCOL}
+  to allow detection and booting of legacy operating systems from OpenCore on Macs, OpenDuet
+  and systems with a CSM. \\
 \href{https://github.com/acidanthera/OpenCorePkg}{\texttt{OpenLinuxBoot}}\textbf{*}
 & \hyperref[uefilinux]{OpenCore plugin} implementing \texttt{OC\_BOOT\_ENTRY\_PROTOCOL}
-  to allow direct detection and booting of Linux distributiuons from OpenCore, without
+  to allow direct detection and booting of Linux distributions from OpenCore, without
   chainloading via GRUB. \\
 \href{https://github.com/acidanthera/OpenCorePkg}{\texttt{OpenNtfsDxe}}\textbf{*}
 & New Technologies File System (NTFS) read-only driver.
@@ -6655,6 +6712,40 @@ functioning. Feature highlights:
   mapping (e.g. \texttt{EnableWriteUnprotector}).
 \end{itemize}
 
+\subsection{OpenLegacyBoot}\label{legacyboot}
+OpenLegacyBoot is an OpenCore plugin implementing \texttt{OC\_BOOT\_ENTRY\_PROTOCOL}.
+It aims to detect and boot legacy installed operating systems.
+
+Usage:
+
+\begin{itemize}
+\tightlist
+  \item Add \texttt{OpenLegacyBoot.efi} and also optionally (see below) \texttt{OpenNtfsDxe.efi} to the \texttt{config.plist}
+  \texttt{Drivers} section.
+  \item Install Windows or another legacy operating system as normal if this has not been done earlier -- OpenLegacyBoot is
+  not involved in this stage and may be unable to boot from installation media such as a USB device.
+  \item Reboot into OpenCore: the installed legacy operating system should appear and boot directly from OpenCore
+  when selected.
+\end{itemize}
+
+OpenLegacyBoot does not require any additional filesystem drivers such as \texttt{OpenNtfsDxe.efi} to be loaded for
+base functionality, but loading them will enable the use of \texttt{.contentDetails} and \texttt{.VolumeIcon.icns}
+files for boot entry customisation.
+
+\subsubsection{Configuration}
+
+No additional configuration should work well in most circumstances, but if required the following
+options for the driver may be specified in \texttt{UEFI/Drivers/Arguments}:
+
+\begin{itemize}
+  \tightlist
+	\item \texttt{-{}-hide-devices} - String value, no default. \medskip
+
+  When this option is present and has one or more values separated by semicolons \\
+  (e.g. -{}-hide-devices=PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0xFFFF,0x0)/HD(2,GPT,...)), 
+  it disables scanning the specified disks for legacy operating system boot sectors.\medskip
+\end{itemize}
+
 \subsection{OpenLinuxBoot}\label{uefilinux}
 
 OpenLinuxBoot is an OpenCore plugin implementing \texttt{OC\_BOOT\_ENTRY\_PROTOCOL}.
@@ -6723,9 +6814,9 @@ Note however that the following differences are normal and do not need to be fix
   as distro boots successfully.
 \end{itemize}
 
-If using OpenLinuxBoot with Secure Boot, users may wish to use the \texttt{shim-to-cert.tool} included in OpenCore
-utilities, which can be used to extract the public key needed to boot a distro's kernels directly, as done when using OpenCore
-with OpenLinuxBoot, rather than via GRUB shim. For non-GRUB distros, the required public key must be found by user research.
+If using OpenLinuxBoot with Secure Boot, users may wish to install
+a user built, user signed Shim bootloader giving SBAT and MOK integration, as explained in
+\href{https://github.com/acidanthera/OpenCorePkg/tree/master/Utilities/ShimUtils}{OpenCore ShimUtils}.
 
 \subsubsection{Configuration}
 
@@ -8308,7 +8399,7 @@ for additional options.
 
   \emph{Note}: This option depends on the \href{https://github.com/acidanthera/OpenCorePkg/blob/master/Include/Acidanthera/Protocol/OcForceResolution.h}{\texttt{OC\_FORCE\_RESOLUTION\_PROTOCOL}}
   protocol being present. This protocol is currently only supported by \texttt{OpenDuetPkg}. The
-  \texttt{OpenDuetPkg} implementation currently only supports Intel iGPUs.
+  \texttt{OpenDuetPkg} implementation currently only supports Intel iGPUs and certain ATI GPUs.
 
 \item
   \texttt{ClearScreenOnModeSwitch}\\
@@ -8823,7 +8914,7 @@ for additional options.
   or corrupted in any way.
   \end{itemize}
 
-\item
+  \item
   \texttt{ResizeUsePciRbIo}\\
   \textbf{Type}: \texttt{plist\ boolean}\\
   \textbf{Failsafe}: \texttt{false}\\
@@ -8833,6 +8924,16 @@ for additional options.
   This is needed on systems with a buggy \texttt{PciIo} implementation where trying to configure
   Resizable BAR results in \texttt{Capability I/O Error}. Typically this is required on
   older systems which have been modified with \href{https://github.com/xCuri0/ReBarUEFI}{ReBarUEFI}.
+
+  \item
+  \texttt{ShimRetainProtocol}\\
+  \textbf{Type}: \texttt{plist\ boolean}\\
+  \textbf{Failsafe}: \texttt{false}\\
+  \textbf{Description}: Request Linux Shim to keep protocol installed for subsequent image loads.
+
+  This option is only required if chaining OpenCore from Shim. It must be set in order to allow
+  OpenCore to launch items which are verified by certificates present in Shim, but not in the
+  system Secure Boot database.
 
 \item
   \texttt{ResizeGpuBars}\\
@@ -9171,15 +9272,16 @@ requires several steps and careful configuration of certain settings as explaine
   the same private key.
 \item Sign all third-party operating system (not made by Microsoft or Apple)
   bootloaders if needed. For Linux there is an option to install
-  Microsoft-signed Shim bootloader as explained on e.g.
-  \href{https://wiki.debian.org/SecureBoot}{Debian Wiki}.
+  a user built, user signed Shim bootloader giving SBAT and MOK integration,
+  as explained in the \texttt{/Utilities/ShimUtils} directory of OpenCore
+  source or releases.
 \item Enable UEFI Secure Boot in firmware preferences and install the
   certificate with a private key. Details on how to generate a certificate
   can be found in various articles, such as \href{https://habr.com/en/post/273497}{this one},
   and are out of the scope of this document. If Windows is needed one
   will also need to add the
   \href{http://go.microsoft.com/fwlink/?LinkID=321192}{Microsoft Windows Production CA 2011}.
-  To launch option ROMs or to use signed Linux drivers,
+  To launch option ROMs or to use signed Linux drivers if not using a user build of Shim,
   \href{http://go.microsoft.com/fwlink/?LinkId=321194}{Microsoft UEFI Driver Signing CA} will also be needed.
 \item Password-protect changing firmware settings to ensure that UEFI Secure Boot
   cannot be disabled without the user's knowledge.
@@ -9195,7 +9297,8 @@ requires several steps and careful configuration of certain settings as explaine
   some extra precautions. Things to consider:
 
   \begin{itemize}
-  \item MBR (Master Boot Record) installations are legacy and will not be supported.
+  \item MBR (Master Boot Record) installations are legacy and are only supported
+  with the OpenLegacyBoot driver.
   \item All the modifications applied (to ACPI, NVRAM, SMBIOS, etc.) are supposed
   to be operating system agnostic, i.e. apply equally regardless of the OS booted.
   This enables Boot Camp software experience on Windows.
